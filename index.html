@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Outside-In Due Diligence Report Generator</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --ink: #0f172a;
+    --ink-soft: #475569;
+    --ink-faint: #94a3b8;
+    --line: #e2e8f0;
+    --line-soft: #f1f5f9;
+    --brand: #1e3a8a;
+    --brand-2: #3b82f6;
+    --accent: #b45309;
+    --high: #b91c1c;
+    --med: #b45309;
+    --low: #047857;
+    --not: #64748b;
+    --radius: 8px;
+    --shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 16px rgba(15,23,42,.05);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --font-serif: "Iowan Old Style", "Palatino Linotype", "Source Serif Pro", Cambria, Georgia, serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .app { max-width: 1080px; margin: 0 auto; padding: 36px 24px 96px; }
+  header { margin-bottom: 24px; }
+  header h1 {
+    font-family: var(--font-serif);
+    font-size: 30px;
+    margin: 0 0 4px;
+    color: var(--brand);
+    letter-spacing: -0.01em;
+  }
+  header p { margin: 0; color: var(--ink-soft); font-size: 14.5px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .section-label {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-soft);
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+  .section-label:not(:first-child) { margin-top: 28px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+  .field small {
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+  .field small a { color: var(--brand-2); }
+  input[type="text"], input[type="password"], select {
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: white;
+    color: var(--ink);
+    transition: border-color 120ms, box-shadow 120ms;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--brand-2);
+    box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+  }
+  .topics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .topic-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+    font-size: 13px;
+    user-select: none;
+    transition: all 120ms;
+  }
+  .topic-chip:hover { border-color: var(--brand-2); }
+  .topic-chip.checked { background: #eff6ff; border-color: var(--brand-2); }
+  .topic-chip input { margin: 0; }
+  .actions { display: flex; gap: 8px; margin-top: 24px; align-items: center; flex-wrap: wrap; }
+  button {
+    font: inherit;
+    font-size: 14px;
+    padding: 9px 18px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: white;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 120ms;
+  }
+  button:hover { border-color: var(--brand-2); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary {
+    background: var(--brand);
+    color: white;
+    border-color: var(--brand);
+    font-weight: 600;
+  }
+  button.primary:hover { background: #1e40af; }
+  .hidden { display: none !important; }
+  .output-section { margin-top: 24px; }
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 13.5px;
+    color: var(--brand);
+  }
+  .progress.done { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #bfdbfe;
+    border-top-color: var(--brand);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .activity {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .activity div { padding: 2px 0; }
+  .activity .search { color: var(--brand); }
+  .activity .think { color: var(--accent); }
+  .report {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 40px 44px;
+    box-shadow: var(--shadow);
+    font-family: var(--font-serif);
+    font-size: 15.5px;
+    line-height: 1.65;
+    color: var(--ink);
+  }
+  .report:empty { display: none; }
+  .report h1 {
+    font-size: 26px;
+    color: var(--brand);
+    margin-top: 0;
+    border-bottom: 2px solid var(--brand);
+    padding-bottom: 8px;
+  }
+  .report h2 {
+    font-size: 19px;
+    color: var(--brand);
+    margin-top: 32px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 4px;
+  }
+  .report h3 { font-size: 16.5px; margin-top: 24px; color: var(--ink); font-family: var(--font); }
+  .report h4 { font-size: 14px; margin-top: 18px; color: var(--ink-soft); font-family: var(--font); text-transform: uppercase; letter-spacing: 0.06em; }
+  .report p, .report ul, .report ol { margin: 0.6em 0; }
+  .report a { color: var(--brand-2); }
+  .report a:hover { color: var(--brand); }
+  .report table {
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13.5px;
+    width: 100%;
+    font-family: var(--font);
+  }
+  .report th, .report td {
+    border: 1px solid var(--line);
+    padding: 7px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .report th { background: var(--line-soft); font-weight: 600; }
+  .report strong { font-weight: 700; }
+  .report code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.9em;
+    background: var(--line-soft);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  .sources-block {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-family: var(--font);
+    font-size: 13px;
+  }
+  .sources-block h2 { font-size: 14px !important; text-transform: uppercase; letter-spacing: 0.08em; border: 0 !important; padding: 0 !important; margin: 0 0 8px !important; color: var(--ink-soft) !important; font-family: var(--font) !important; }
+  .sources-block ol { margin: 0; padding-left: 22px; }
+  .sources-block li { margin: 3px 0; }
+  .sources-block li.ref-flash { background: #fef3c7; transition: background 0.4s ease; }
+  .report sup { font-size: 0.72em; line-height: 0; vertical-align: super; }
+  .report sup a {
+    text-decoration: none;
+    color: var(--brand-2);
+    padding: 0 1px;
+    font-weight: 600;
+  }
+  .report sup a:hover { text-decoration: underline; }
+  .search-suggestions {
+    margin-top: 18px;
+    padding: 10px 0 0;
+    border-top: 1px dashed var(--line);
+  }
+  .search-suggestions-label {
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+  .report-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  .error {
+    color: #991b1b;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 13.5px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .usage {
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin-top: 8px;
+    font-family: ui-monospace, monospace;
+  }
+  @media print {
+    body { background: white; }
+    .form-section, .progress, .activity, .report-actions, header, .usage, .search-suggestions { display: none; }
+    .report { box-shadow: none; border: none; padding: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Outside-In Due Diligence</h1>
+    <p>ESG and operational risk screen for private equity acquisition targets, using public information only. Powered by Google Gemini with Google Search grounding.</p>
+  </header>
+
+  <section class="form-section">
+    <div class="card">
+      <p class="section-label">Target Company</p>
+      <div class="grid">
+        <div class="field">
+          <label for="company">Company Name</label>
+          <input id="company" type="text" placeholder="Acme Specialty Chemicals">
+        </div>
+        <div class="field">
+          <label for="industry">Industry</label>
+          <input id="industry" type="text" placeholder="Specialty chemicals manufacturing">
+        </div>
+        <div class="field">
+          <label for="revenue">Annual Revenue</label>
+          <input id="revenue" type="text" placeholder="$250M">
+        </div>
+        <div class="field">
+          <label for="countries">Countries of Operation</label>
+          <input id="countries" type="text" placeholder="USA, Mexico, Germany">
+        </div>
+        <div class="field">
+          <label for="timePeriod">Research Period</label>
+          <input id="timePeriod" type="text" placeholder="Past 5 years" value="Past 5 years">
+        </div>
+      </div>
+
+      <p class="section-label">Topics to Assess</p>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 10px;">All 11 topics are screened. Topics rated <em>Not Material</em> are excluded from findings (with rationale in the materiality matrix).</p>
+      <div class="topics-grid" id="topics"></div>
+
+      <p class="section-label">API Settings</p>
+      <div class="grid">
+        <div class="field" style="grid-column: span 2;">
+          <label for="apiKey">Gemini API Key</label>
+          <input id="apiKey" type="password" placeholder="AIza...">
+          <small>Stored only in your browser's localStorage. Sent only to generativelanguage.googleapis.com. Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.</small>
+        </div>
+        <div class="field">
+          <label for="model">Model</label>
+          <select id="model">
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro (recommended)</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash (faster, cheaper)</option>
+            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (cheapest)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="thinkingMode">Thinking</label>
+          <select id="thinkingMode">
+            <option value="dynamic">Dynamic (recommended)</option>
+            <option value="max">Maximum</option>
+            <option value="off">Off (fastest)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="generate" class="primary">Generate Report</button>
+        <button id="stop" class="hidden">Stop</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="output" class="output-section hidden"></section>
+</div>
+
+<script>
+const TOPICS = [
+  "Ethics & Compliance",
+  "Data Privacy & Security",
+  "Diversity, Equity & Inclusion (DEI)",
+  "Social & Labor Conditions",
+  "Worker Health & Safety",
+  "Environmental Management",
+  "Stewardship",
+  "Positive Impact Potential",
+  "Climate Change",
+  "Corporate Governance",
+  "Selling Practices"
+];
+
+const $ = id => document.getElementById(id);
+
+const topicsEl = $('topics');
+TOPICS.forEach(t => {
+  const id = 'topic-' + t.replace(/[^a-z0-9]/gi, '');
+  const label = document.createElement('label');
+  label.className = 'topic-chip checked';
+  label.innerHTML = `<input type="checkbox" id="${id}" value="${t}" checked><span>${t}</span>`;
+  const cb = label.querySelector('input');
+  cb.addEventListener('change', () => {
+    label.classList.toggle('checked', cb.checked);
+    saveForm();
+  });
+  topicsEl.appendChild(label);
+});
+
+const FIELDS = ['company','industry','revenue','countries','timePeriod','apiKey','model','thinkingMode'];
+function saveForm() {
+  const state = {};
+  FIELDS.forEach(f => state[f] = $(f).value);
+  state.topics = TOPICS.filter(t => topicsEl.querySelector(`input[value="${t}"]`).checked);
+  try { localStorage.setItem('oidd_gemini_v1', JSON.stringify(state)); } catch (e) {}
+}
+function loadForm() {
+  try {
+    const state = JSON.parse(localStorage.getItem('oidd_gemini_v1') || '{}');
+    FIELDS.forEach(f => { if (state[f] !== undefined) $(f).value = state[f]; });
+    if (Array.isArray(state.topics)) {
+      TOPICS.forEach(t => {
+        const cb = topicsEl.querySelector(`input[value="${t}"]`);
+        const checked = state.topics.includes(t);
+        cb.checked = checked;
+        cb.parentElement.classList.toggle('checked', checked);
+      });
+    }
+  } catch (e) {}
+}
+FIELDS.forEach(f => $(f).addEventListener('input', saveForm));
+loadForm();
+
+const SYSTEM_PROMPT = `You are a senior ESG and operational risk analyst at a major private equity firm. You produce outside-in (public information only) due diligence screens used in investment committee review.
+
+# YOUR PROCESS
+
+## Step 1 — Materiality Assessment
+For each topic in scope, assess materiality for THIS specific company given its industry, geography, and size. Apply SASB-style sector materiality plus jurisdictional risk overlays. Rate each topic:
+- **High** — likely a key value driver or risk; merits deep investigation
+- **Medium** — relevant; investigate selectively
+- **Low** — minor relevance; brief check sufficient
+- **Not material** — do not investigate; explain why in the matrix only
+
+## Step 2 — Research (Google Search grounding is enabled)
+For topics rated Low or higher, use Google Search to find publicly available evidence. **Focus your research on the user-specified research period.** Older events are only relevant if (a) they remain operationally material today (open consent decree, ongoing litigation, unresolved regulatory action) or (b) they establish a pattern that recurs in the research period. Cover where applicable:
+- News articles (mainstream, trade press, and local-language sources for non-US geographies)
+- Regulatory enforcement databases (EPA ECHO, OSHA, SEC EDGAR, FTC, DOJ, FCPA, FCA UK, BaFin, etc.)
+- Court records, settlements, class actions, consent decrees
+- NGO and watchdog reports (HRW, Amnesty, Global Witness, etc.)
+- Ratings agency public summaries (MSCI ESG, Sustainalytics, ISS)
+- Glassdoor, Indeed, union filings for labor topics
+- The company's own disclosures (sustainability reports, 10-K, ESG webpage) — treat skeptically as outside-in
+- Industry context where company-specific data is sparse — tag clearly
+
+Be thorough but efficient. Search for the company name plus specific terms (e.g. "ACME Corp lawsuit", "ACME Corp OSHA violation", "ACME Corp Mexico labor"). Run as many targeted queries as you need to develop confidence.
+
+**Absence of red flags is a valid finding.** If nothing concerning surfaces, state so explicitly and list the searches you ran.
+
+## Step 3 — Final Report
+
+Produce ONLY the final markdown report. No preamble. Skip "Not Material" topics from the Findings section. Order findings High → Medium → Low.
+
+Use EXACTLY this structure:
+
+---
+
+# Outside-In Due Diligence Report
+
+**Target:** [name] | **Industry:** [industry] | **Revenue:** [revenue] | **Geography:** [countries]
+**Report Date:** [date] | **Basis:** Public information only
+
+## Executive Summary
+2–3 sentences. Overall risk profile and the top 2–3 issues warranting IC attention.
+
+## Materiality Matrix
+
+| Topic | Materiality | Rationale |
+|---|---|---|
+| [topic] | [High/Med/Low/Not material] | [one line] |
+
+(include ALL assessed topics, including Not Material ones)
+
+## Findings
+(Ordered High → Medium → Low. Skip Not Material entirely.)
+
+### [Topic Name] — [Materiality]
+
+**Risk Assessment:** [Low / Moderate / Elevated / High] — one sentence naming the single most important factor that drives this rating (the specific incident, exposure, structural weakness, or mitigating strength that tips the call).
+
+**Incidents.** Specific events tied to this company in the research period — lawsuits, settlements, accidents, scandals, terminations, controversies, breaches, recalls, layoffs. One event per bullet, with date, jurisdiction, party names, and dollar amounts where available. If none: write "None identified in the research period."
+
+**Regulatory Exposure.** Regulators with jurisdiction over this company's operations; active enforcement actions, consent decrees, fines, license/permit issues, ongoing investigations; jurisdiction-specific risks (operating in countries with weaker enforcement, or in regimes with intensifying requirements). One item per bullet. If none: write "No active regulatory matters identified."
+
+**Capacity to Manage.** Public evidence that the company is structurally equipped (or not) to handle this risk — board oversight, named executive responsibility, certifications (ISO 14001, SA8000, B Corp, SOC 2, etc.), formal policies, third-party audits, recent program investments, public commitments, disclosure quality. **Absence of public disclosure is itself a finding** — note it. One item per bullet. If nothing surfaces: write "No public evidence of formal management capacity for this topic."
+
+Within each sub-section keep one grounded claim per bullet so source markers attach cleanly.
+
+(repeat for each material topic)
+
+## Recommended Diligence Follow-ups
+Bullet list of specific questions or documents to request from the seller in management presentations, addressing gaps in public information.
+
+---
+
+# RULES
+
+- Outside-in = PUBLIC information ONLY. Do not invent internal data.
+- Do **NOT** write your own markdown citation links. The system automatically inserts numbered reference markers (e.g. \`[1][2]\`) next to grounded claims and appends a References list at the end, using your actual Google Search results. Your job is to make every claim verifiable from those search results — formatting is handled for you.
+- Respect the user-specified research period. Date every finding (e.g. "in 2024", "Q3 2023") so the reader can judge currency.
+- Be specific: dates, dollar amounts, jurisdictions, party names, case numbers, regulatory IDs where applicable.
+- Avoid generic statements ("the chemicals industry faces ESG risk"). Tie every claim to this specific company or its specific facilities.
+- If a concern is industry-wide but you cannot tie it to this company, note that explicitly and treat as Low / context-only.
+- If you cannot find a primary source for a claim, omit the claim.
+- Maintain a neutral, factual, IC-appropriate tone. No hedging adjectives, no marketing language.
+- Do NOT output your reasoning, plans, or commentary. Output ONLY the final markdown report.`;
+
+let abortController = null;
+
+function buildUserMessage() {
+  const company = $('company').value.trim();
+  const industry = $('industry').value.trim();
+  const revenue = $('revenue').value.trim() || 'Not specified';
+  const countries = $('countries').value.trim() || 'Not specified';
+  const timePeriod = $('timePeriod').value.trim() || 'Past 5 years';
+  const selectedTopics = TOPICS.filter(t => topicsEl.querySelector(`input[value="${t}"]`).checked);
+  const today = new Date().toISOString().split('T')[0];
+
+  if (!company) throw new Error('Company name is required.');
+  if (!industry) throw new Error('Industry is required.');
+  if (selectedTopics.length === 0) throw new Error('Select at least one topic.');
+
+  return `# TARGET
+- Company: ${company}
+- Industry: ${industry}
+- Annual Revenue: ${revenue}
+- Countries of Operation: ${countries}
+- Research Period: ${timePeriod}
+- Report Date: ${today}
+
+# TOPICS IN SCOPE
+${selectedTopics.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+Conduct the materiality assessment, research material topics using Google Search (focusing on the research period above), and produce the final markdown report. Output ONLY the report.`;
+}
+
+function thinkingBudgetFor(model, mode) {
+  // Pro: -1 dynamic, 128..32768 (cannot be 0)
+  // Flash: -1 dynamic, 0..24576
+  // Flash-Lite: 0..24576 (default 0)
+  if (mode === 'dynamic') return -1;
+  if (mode === 'max') {
+    if (model === 'gemini-2.5-pro') return 32768;
+    return 24576;
+  }
+  if (mode === 'off') {
+    if (model === 'gemini-2.5-pro') return 128; // Pro cannot fully disable; use minimum
+    return 0;
+  }
+  return -1;
+}
+
+$('generate').addEventListener('click', generate);
+$('stop').addEventListener('click', () => { if (abortController) abortController.abort(); });
+
+function showError(msg) {
+  const output = $('output');
+  output.classList.remove('hidden');
+  const existing = output.querySelector('.error');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.className = 'error';
+  div.textContent = msg;
+  output.prepend(div);
+}
+
+async function generate() {
+  const apiKey = $('apiKey').value.trim();
+  if (!apiKey) { showError('Please provide a Gemini API key.'); return; }
+
+  let userMessage;
+  try { userMessage = buildUserMessage(); }
+  catch (e) { showError(e.message); return; }
+
+  const model = $('model').value;
+  const thinkingMode = $('thinkingMode').value;
+  const thinkingBudget = thinkingBudgetFor(model, thinkingMode);
+
+  $('generate').classList.add('hidden');
+  $('stop').classList.remove('hidden');
+
+  const output = $('output');
+  output.classList.remove('hidden');
+  output.innerHTML = `
+    <div class="progress" id="progress">
+      <div class="spinner"></div>
+      <div id="progressMsg">Calling Gemini. Assessing materiality and researching with Google Search — this may take 1–3 minutes…</div>
+    </div>
+    <div class="activity" id="activity"><div>Google searches and reasoning will appear here…</div></div>
+    <div class="report" id="report"></div>
+  `;
+
+  const reportEl = $('report');
+  const activityEl = $('activity');
+  let reportText = '';
+  let renderTimer = null;
+
+  // grounding state — keep the latest full groundingMetadata so its
+  // groundingSupports.groundingChunkIndices stay valid against its own chunks
+  let lastGroundingMetadata = null;
+  const searchQueriesSeen = new Set();
+  let searchSuggestionsHtml = null;
+  let totalUsage = null;
+  let finishReason = null;
+
+  function scheduleRender() {
+    if (renderTimer) return;
+    renderTimer = setTimeout(() => {
+      renderTimer = null;
+      const html = DOMPurify.sanitize(marked.parse(reportText));
+      reportEl.innerHTML = html;
+      reportEl.querySelectorAll('a').forEach(a => {
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+      });
+    }, 180);
+  }
+
+  function logActivity(text, cls) {
+    const div = document.createElement('div');
+    if (cls) div.className = cls;
+    div.textContent = text;
+    activityEl.appendChild(div);
+    activityEl.scrollTop = activityEl.scrollHeight;
+  }
+
+  abortController = new AbortController();
+
+  const requestBody = {
+    contents: [
+      { role: 'user', parts: [{ text: userMessage }] }
+    ],
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    tools: [{ google_search: {} }],
+    generationConfig: {
+      maxOutputTokens: 32000,
+      temperature: 0.2,
+      thinkingConfig: {
+        thinkingBudget: thinkingBudget,
+        includeThoughts: true
+      }
+    }
+  };
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify(requestBody),
+        signal: abortController.signal
+      }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      let msg = `API ${response.status}: ${errText}`;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.error && parsed.error.message) msg = `API ${response.status}: ${parsed.error.message}`;
+      } catch (_) {}
+      throw new Error(msg);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE: blocks separated by blank line; each `data:` line is one complete JSON
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (!data) continue;
+
+        let evt;
+        try { evt = JSON.parse(data); } catch (_) { continue; }
+
+        const cand = evt.candidates && evt.candidates[0];
+        if (cand) {
+          if (cand.content && Array.isArray(cand.content.parts)) {
+            for (const part of cand.content.parts) {
+              if (!part) continue;
+              if (part.thought === true && part.text) {
+                // streamed thought summary
+                const snippet = part.text.replace(/\s+/g, ' ').trim().slice(0, 160);
+                if (snippet) logActivity(`💭 ${snippet}…`, 'think');
+              } else if (typeof part.text === 'string') {
+                reportText += part.text;
+                scheduleRender();
+              }
+            }
+          }
+          if (cand.groundingMetadata) {
+            const gm = cand.groundingMetadata;
+            lastGroundingMetadata = gm; // typically delivered complete near end of stream
+            if (Array.isArray(gm.webSearchQueries)) {
+              for (const q of gm.webSearchQueries) {
+                if (q && !searchQueriesSeen.has(q)) {
+                  searchQueriesSeen.add(q);
+                  logActivity(`🔎 ${q}`, 'search');
+                }
+              }
+            }
+            if (gm.searchEntryPoint && gm.searchEntryPoint.renderedContent) {
+              searchSuggestionsHtml = gm.searchEntryPoint.renderedContent;
+            }
+          }
+          if (cand.finishReason) finishReason = cand.finishReason;
+        }
+        if (evt.usageMetadata) totalUsage = evt.usageMetadata;
+      }
+    }
+
+    // Inject inline citation markers using groundingSupports → build References list
+    let references = [];
+    if (lastGroundingMetadata) {
+      const result = injectInlineCitations(reportText, lastGroundingMetadata);
+      reportText = result.text;
+      references = result.references;
+    }
+
+    if (renderTimer) clearTimeout(renderTimer);
+    reportEl.innerHTML = DOMPurify.sanitize(
+      marked.parse(reportText),
+      { ADD_TAGS: ['sup'], ADD_ATTR: ['id'] }
+    );
+    reportEl.querySelectorAll('a[href^="http"]').forEach(a => {
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    });
+    // Smooth-scroll citation links to their reference list item
+    reportEl.querySelectorAll('a[href^="#ref-"]').forEach(a => {
+      a.addEventListener('click', e => {
+        const id = a.getAttribute('href').slice(1);
+        const target = document.getElementById(id);
+        if (target) {
+          e.preventDefault();
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('ref-flash');
+          setTimeout(() => target.classList.remove('ref-flash'), 1400);
+        }
+      });
+    });
+
+    if (references.length) {
+      const refDiv = document.createElement('div');
+      refDiv.className = 'sources-block';
+      const ol = references
+        .map(r => `<li id="ref-${r.num}"><a href="${escapeAttr(r.uri)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a></li>`)
+        .join('');
+      refDiv.innerHTML = `<h2 id="references">References</h2><ol>${ol}</ol>`;
+      reportEl.appendChild(refDiv);
+    }
+
+    // Required: render Google's Search Suggestions widget when grounding is used
+    if (searchSuggestionsHtml) {
+      const wrap = document.createElement('div');
+      wrap.className = 'search-suggestions';
+      wrap.innerHTML = `<div class="search-suggestions-label">Google Search Suggestions</div>` +
+        DOMPurify.sanitize(searchSuggestionsHtml, { ADD_TAGS: ['style', 'svg', 'path', 'g', 'circle', 'rect', 'line', 'polyline', 'polygon'], ADD_ATTR: ['style', 'd', 'fill', 'stroke', 'transform', 'viewBox', 'xmlns', 'cx', 'cy', 'r', 'x', 'y', 'width', 'height'] });
+      reportEl.appendChild(wrap);
+    }
+
+    const progress = $('progress');
+    progress.classList.add('done');
+    let label = '<strong>✓ Report complete.</strong>';
+    if (finishReason && finishReason !== 'STOP') {
+      label = `<strong>⚠ Stopped: ${finishReason}.</strong>`;
+    }
+    progress.innerHTML = label;
+
+    if (totalUsage) {
+      const u = totalUsage;
+      const parts = [];
+      if (u.promptTokenCount != null) parts.push(`prompt ${u.promptTokenCount}`);
+      if (u.thoughtsTokenCount != null) parts.push(`thoughts ${u.thoughtsTokenCount}`);
+      if (u.candidatesTokenCount != null) parts.push(`output ${u.candidatesTokenCount}`);
+      if (u.cachedContentTokenCount != null) parts.push(`cached ${u.cachedContentTokenCount}`);
+      if (u.totalTokenCount != null) parts.push(`total ${u.totalTokenCount}`);
+      parts.push(`searches ${searchQueriesSeen.size}`);
+      const usageDiv = document.createElement('div');
+      usageDiv.className = 'usage';
+      usageDiv.textContent = 'usage — ' + parts.join(' · ');
+      progress.appendChild(usageDiv);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'report-actions';
+    actions.innerHTML = `
+      <button id="copyMd">Copy Markdown</button>
+      <button id="downloadMd">Download .md</button>
+      <button id="print">Print / Save PDF</button>
+    `;
+    output.appendChild(actions);
+
+    function buildMarkdownExport() {
+      // Replace HTML citation markers with plain [N]
+      const plain = reportText.replace(
+        /<sup><a href="#ref-(\d+)">\[(\d+)\]<\/a><\/sup>/g,
+        '[$2]'
+      );
+      const refsMd = references.length
+        ? '\n\n## References\n\n' +
+          references.map(r => `${r.num}. [${r.title}](${r.uri})`).join('\n')
+        : '';
+      return plain + refsMd;
+    }
+
+    $('copyMd').onclick = () => {
+      navigator.clipboard.writeText(buildMarkdownExport());
+      $('copyMd').textContent = 'Copied!';
+      setTimeout(() => $('copyMd').textContent = 'Copy Markdown', 1500);
+    };
+    $('downloadMd').onclick = () => {
+      const blob = new Blob([buildMarkdownExport()], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const co = ($('company').value || 'target').replace(/[^a-z0-9]/gi, '_');
+      a.download = `outside_in_dd_${co}_${new Date().toISOString().split('T')[0]}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+    $('print').onclick = () => window.print();
+
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      const p = $('progress');
+      if (p) p.innerHTML = '<em>Generation stopped.</em>';
+    } else {
+      showError(e.message);
+    }
+  } finally {
+    $('generate').classList.remove('hidden');
+    $('stop').classList.add('hidden');
+    abortController = null;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function escapeAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+// Gemini's groundingSupports use UTF-8 byte offsets into the streamed text.
+// Convert a byte offset to a JS string (UTF-16) index.
+function byteToCharOffset(text, byteOffset) {
+  if (byteOffset <= 0) return 0;
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (bytes >= byteOffset) return i;
+    const code = text.codePointAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code < 0x10000) bytes += 3;
+    else { bytes += 4; i++; } // surrogate pair: consume two JS chars
+  }
+  return text.length;
+}
+
+// Use groundingSupports to insert citation markers next to grounded text spans.
+// Returns { text, references } where references is [{ num, uri, title }].
+function injectInlineCitations(text, gm) {
+  const chunks = Array.isArray(gm.groundingChunks) ? gm.groundingChunks : [];
+  const supports = Array.isArray(gm.groundingSupports) ? gm.groundingSupports : [];
+
+  // Collect refs in order of first appearance (sorted by segment end position).
+  const supportsByPos = supports
+    .filter(s => s && s.segment && typeof s.segment.endIndex === 'number')
+    .slice()
+    .sort((a, b) => a.segment.endIndex - b.segment.endIndex);
+
+  const uriToNum = new Map();
+  const references = [];
+  for (const s of supportsByPos) {
+    for (const idx of (s.groundingChunkIndices || [])) {
+      const c = chunks[idx];
+      const uri = c && c.web && c.web.uri;
+      if (!uri || uriToNum.has(uri)) continue;
+      const num = references.length + 1;
+      uriToNum.set(uri, num);
+      references.push({
+        num,
+        uri,
+        title: (c.web.title || uri).toString()
+      });
+    }
+  }
+
+  // Fallback: if there were chunks but no supports, expose them as bare references
+  // so the user still sees what Google retrieved.
+  if (!references.length) {
+    for (const c of chunks) {
+      const uri = c && c.web && c.web.uri;
+      if (!uri || uriToNum.has(uri)) continue;
+      const num = references.length + 1;
+      uriToNum.set(uri, num);
+      references.push({ num, uri, title: (c.web.title || uri).toString() });
+    }
+    return { text, references };
+  }
+
+  // Insert markers from the end of the text backward, so earlier offsets stay valid.
+  const supportsDesc = supportsByPos.slice().reverse();
+  let out = text;
+  for (const s of supportsDesc) {
+    const nums = (s.groundingChunkIndices || [])
+      .map(idx => chunks[idx] && chunks[idx].web && chunks[idx].web.uri)
+      .filter(Boolean)
+      .map(uri => uriToNum.get(uri))
+      .filter(Boolean);
+    if (!nums.length) continue;
+    const unique = [...new Set(nums)].sort((a, b) => a - b);
+    const charPos = byteToCharOffset(out, s.segment.endIndex);
+    const marker = unique
+      .map(n => `<sup><a href="#ref-${n}">[${n}]</a></sup>`)
+      .join('');
+    out = out.slice(0, charPos) + marker + out.slice(charPos);
+  }
+
+  return { text: out, references };
+}
+</script>
+</body>
+</html>
