@@ -479,7 +479,7 @@ Use EXACTLY this structure:
 
 **Capacity to Manage.** Public evidence that the company is structurally equipped (or not) to handle this risk — board oversight, named executive responsibility, certifications (ISO 14001, SA8000, B Corp, SOC 2, etc.), formal policies, third-party audits, recent program investments, public commitments, disclosure quality. **Absence of public disclosure is itself a finding** — note it. One item per bullet. If nothing surfaces: write "No public evidence of formal management capacity for this topic."
 
-Within each sub-section keep one grounded claim per bullet so source markers attach cleanly.
+Within each sub-section keep one grounded claim per bullet so source markers attach cleanly, and end each bullet with the source-tier label (see RULES below for the four allowed tags).
 
 (repeat for each material topic)
 
@@ -496,7 +496,13 @@ Bullet list of specific questions or documents to request from the seller in man
 - Be specific: dates, dollar amounts, jurisdictions, party names, case numbers, regulatory IDs where applicable.
 - Avoid generic statements ("the chemicals industry faces ESG risk"). Tie every claim to this specific company or its specific facilities.
 - If a concern is industry-wide but you cannot tie it to this company, note that explicitly and treat as Low / context-only.
-- If you cannot find a primary source for a claim, omit the claim.
+- **Evidence threshold.** Include a finding only if it is supported by EITHER (a) at least two independent sources — independent meaning different organizations doing original reporting, not the same wire story republished — OR (b) one primary source (regulator filing, court record, SEC/EDGAR document, official agency enforcement action, court docket). Findings that meet neither threshold must be omitted entirely.
+- **Source-tier label.** End every finding bullet with a tier tag in brackets indicating the strongest supporting source for that claim. Use EXACTLY these four strings:
+  - \`[Primary]\` — regulator filings, court records, SEC/EDGAR documents, official agency enforcement actions, court dockets
+  - \`[Major news]\` — Reuters, FT, WSJ, Bloomberg, NYT, AP, BBC, major broadcast networks
+  - \`[Trade/NGO]\` — industry trade publications, ratings-agency summaries (MSCI, Sustainalytics, ISS), NGO reports (HRW, Global Witness, Amnesty)
+  - \`[Anecdotal]\` — Glassdoor, Indeed, Reddit, blogs, forum posts, single anonymous reports
+  If multiple sources support a claim, use the highest-tier label present. These tags are explicit text annotations — they are NOT citation markers; the system still inserts citation markers (\`[1]\`, \`[2]\`, etc.) automatically. Do not label the "None identified" / "No active regulatory matters" / "No public evidence" fallbacks — those are explicit nulls, not findings.
 - Maintain a neutral, factual, IC-appropriate tone. No hedging adjectives, no marketing language.
 - Do NOT output your reasoning, plans, or commentary. Output ONLY the final markdown report.`;
 
