@@ -276,6 +276,18 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+  .warning {
+    color: #92400e;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .warning strong { display: block; margin-bottom: 6px; }
+  .warning ul { margin: 0; padding-left: 22px; }
+  .warning li { margin: 2px 0; }
   .usage {
     font-size: 12px;
     color: var(--ink-faint);
@@ -317,13 +329,17 @@
           <input id="countries" type="text" placeholder="USA, Mexico, Germany">
         </div>
         <div class="field">
-          <label for="timePeriod">Research Period</label>
-          <input id="timePeriod" type="text" placeholder="Past 5 years" value="Past 5 years">
+          <label for="periodStart">Research Period — Start</label>
+          <input id="periodStart" type="date">
+        </div>
+        <div class="field">
+          <label for="periodEnd">Research Period — End</label>
+          <input id="periodEnd" type="date">
         </div>
       </div>
 
       <p class="section-label">Topics to Assess</p>
-      <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 10px;">All 11 topics are screened. Topics rated <em>Not Material</em> are excluded from findings (with rationale in the materiality matrix).</p>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:-6px 0 10px;">All 12 topics are screened. Topics rated <em>Not Material</em> are excluded from findings (with rationale in the materiality matrix).</p>
       <div class="topics-grid" id="topics"></div>
 
       <p class="section-label">API Settings</p>
@@ -368,6 +384,7 @@ const TOPICS = [
   "Diversity, Equity & Inclusion (DEI)",
   "Social & Labor Conditions",
   "Worker Health & Safety",
+  "Food Safety",
   "Environmental Management",
   "Stewardship",
   "Positive Impact Potential",
@@ -392,7 +409,15 @@ TOPICS.forEach(t => {
   topicsEl.appendChild(label);
 });
 
-const FIELDS = ['company','industry','revenue','countries','timePeriod','apiKey','model','thinkingMode'];
+const FIELDS = ['company','industry','revenue','countries','periodStart','periodEnd','apiKey','model','thinkingMode'];
+
+function defaultPeriod() {
+  const end = new Date();
+  const start = new Date();
+  start.setFullYear(end.getFullYear() - 5);
+  const iso = d => d.toISOString().split('T')[0];
+  return { start: iso(start), end: iso(end) };
+}
 function saveForm() {
   const state = {};
   FIELDS.forEach(f => state[f] = $(f).value);
@@ -415,96 +440,60 @@ function loadForm() {
 }
 FIELDS.forEach(f => $(f).addEventListener('input', saveForm));
 loadForm();
+(() => {
+  const { start, end } = defaultPeriod();
+  if (!$('periodStart').value) $('periodStart').value = start;
+  if (!$('periodEnd').value) $('periodEnd').value = end;
+})();
 
 const SYSTEM_PROMPT = `You are a senior ESG and operational risk analyst at a major private equity firm. You produce outside-in (public information only) due diligence screens used in investment committee review.
 
-# YOUR PROCESS
+# PROCESS
 
-## Step 1 — Materiality Assessment
-For each topic in scope, assess materiality for THIS specific company given its industry, geography, and size. Apply SASB-style sector materiality plus jurisdictional risk overlays. Rate each topic:
-- **High** — likely a key value driver or risk; merits deep investigation
-- **Medium** — relevant; investigate selectively
-- **Low** — minor relevance; brief check sufficient
-- **Not material** — do not investigate; explain why in the matrix only
+## Materiality Assessment
+For each topic in scope, assess materiality for THIS specific company given its industry, geography, and size. Apply SASB-style sector materiality plus jurisdictional risk overlays. Rate each topic as High, Medium, Low, or "Not material" with a one-line rationale.
 
-## Step 2 — Research (Google Search grounding is enabled)
-For topics rated Low or higher, use Google Search to find publicly available evidence. **Focus your research on the user-specified research period.** Older events are only relevant if (a) they remain operationally material today (open consent decree, ongoing litigation, unresolved regulatory action) or (b) they establish a pattern that recurs in the research period. Cover where applicable:
-- News articles (mainstream, trade press, and local-language sources for non-US geographies)
-- Regulatory enforcement databases (EPA ECHO, OSHA, SEC EDGAR, FTC, DOJ, FCPA, FCA UK, BaFin, etc.)
+## Research (Google Search grounding is enabled)
+For topics rated Low or higher, search publicly available evidence. Consult where applicable:
+- News articles (mainstream, trade press, local-language for non-US geographies)
+- Regulator publications and enforcement databases (EPA ECHO, OSHA, SEC EDGAR, FTC, DOJ, FCPA, FCA UK, BaFin, ESMA, CNIL, ICO, EEOC, etc.)
+- Statute and regulation texts (EUR-Lex, eCFR, regulator-issued summaries and guidance)
 - Court records, settlements, class actions, consent decrees
 - NGO and watchdog reports (HRW, Amnesty, Global Witness, etc.)
 - Ratings agency public summaries (MSCI ESG, Sustainalytics, ISS)
 - Glassdoor, Indeed, union filings for labor topics
-- The company's own disclosures (sustainability reports, 10-K, ESG webpage) — treat skeptically as outside-in
+- Company disclosures (sustainability reports, 10-K, ESG webpage) — treat skeptically as outside-in
 - Industry context where company-specific data is sparse — tag clearly
 
-Be thorough but efficient. Search for the company name plus specific terms (e.g. "ACME Corp lawsuit", "ACME Corp OSHA violation", "ACME Corp Mexico labor"). Run as many targeted queries as you need to develop confidence.
-
-**Absence of red flags is a valid finding.** If nothing concerning surfaces, state so explicitly and list the searches you ran.
-
-## Step 3 — Final Report
-
-Produce ONLY the final markdown report. No preamble. Skip "Not Material" topics from the Findings section. Order findings High → Medium → Low.
-
-Use EXACTLY this structure:
-
----
-
-# Outside-In Due Diligence Report
-
-**Target:** [name] | **Industry:** [industry] | **Revenue:** [revenue] | **Geography:** [countries]
-**Report Date:** [date] | **Basis:** Public information only
-
-## Executive Summary
-2–3 sentences. Overall risk profile and the top 2–3 issues warranting IC attention.
-
-## Materiality Matrix
-
-| Topic | Materiality | Rationale |
-|---|---|---|
-| [topic] | [High/Med/Low/Not material] | [one line] |
-
-(include ALL assessed topics, including Not Material ones)
-
-## Findings
-(Ordered High → Medium → Low. Skip Not Material entirely.)
-
-### [Topic Name] — [Materiality]
-
-**Risk Assessment:** [Low / Moderate / Elevated / High] — one sentence naming the single most important factor that drives this rating (the specific incident, exposure, structural weakness, or mitigating strength that tips the call).
-
-**Incidents.** Specific events tied to this company in the research period — lawsuits, settlements, accidents, scandals, terminations, controversies, breaches, recalls, layoffs. One event per bullet, with date, jurisdiction, party names, and dollar amounts where available. If none: write "None identified in the research period."
-
-**Regulatory Exposure.** Regulators with jurisdiction over this company's operations; active enforcement actions, consent decrees, fines, license/permit issues, ongoing investigations; jurisdiction-specific risks (operating in countries with weaker enforcement, or in regimes with intensifying requirements). One item per bullet. If none: write "No active regulatory matters identified."
-
-**Capacity to Manage.** Public evidence that the company is structurally equipped (or not) to handle this risk — board oversight, named executive responsibility, certifications (ISO 14001, SA8000, B Corp, SOC 2, etc.), formal policies, third-party audits, recent program investments, public commitments, disclosure quality. **Absence of public disclosure is itself a finding** — note it. One item per bullet. If nothing surfaces: write "No public evidence of formal management capacity for this topic."
-
-Within each sub-section keep one grounded claim per bullet so source markers attach cleanly, and end each bullet with the source-tier label (see RULES below for the four allowed tags).
-
-(repeat for each material topic)
-
-## Recommended Diligence Follow-ups
-Bullet list of specific questions or documents to request from the seller in management presentations, addressing gaps in public information.
-
----
+Run as many targeted queries as you need to develop confidence. **Absence of red flags is a valid finding** — return empty arrays rather than inventing material.
 
 # RULES
 
-- Outside-in = PUBLIC information ONLY. Do not invent internal data.
-- Do **NOT** write your own markdown citation links. The system automatically inserts numbered reference markers (e.g. \`[1][2]\`) next to grounded claims and appends a References list at the end, using your actual Google Search results. Your job is to make every claim verifiable from those search results — formatting is handled for you.
-- Respect the user-specified research period. Date every finding (e.g. "in 2024", "Q3 2023") so the reader can judge currency.
-- Be specific: dates, dollar amounts, jurisdictions, party names, case numbers, regulatory IDs where applicable.
-- Avoid generic statements ("the chemicals industry faces ESG risk"). Tie every claim to this specific company or its specific facilities.
-- If a concern is industry-wide but you cannot tie it to this company, note that explicitly and treat as Low / context-only.
-- **Evidence threshold.** Include a finding only if it is supported by EITHER (a) at least two independent sources — independent meaning different organizations doing original reporting, not the same wire story republished — OR (b) one primary source (regulator filing, court record, SEC/EDGAR document, official agency enforcement action, court docket). Findings that meet neither threshold must be omitted entirely.
-- **Source-tier label.** End every finding bullet with a tier tag in brackets indicating the strongest supporting source for that claim. Use EXACTLY these four strings:
-  - \`[Primary]\` — regulator filings, court records, SEC/EDGAR documents, official agency enforcement actions, court dockets
-  - \`[Major news]\` — Reuters, FT, WSJ, Bloomberg, NYT, AP, BBC, major broadcast networks
-  - \`[Trade/NGO]\` — industry trade publications, ratings-agency summaries (MSCI, Sustainalytics, ISS), NGO reports (HRW, Global Witness, Amnesty)
-  - \`[Anecdotal]\` — Glassdoor, Indeed, Reddit, blogs, forum posts, single anonymous reports
-  If multiple sources support a claim, use the highest-tier label present. These tags are explicit text annotations — they are NOT citation markers; the system still inserts citation markers (\`[1]\`, \`[2]\`, etc.) automatically. Do not label the "None identified" / "No active regulatory matters" / "No public evidence" fallbacks — those are explicit nulls, not findings.
-- Maintain a neutral, factual, IC-appropriate tone. No hedging adjectives, no marketing language.
-- Do NOT output your reasoning, plans, or commentary. Output ONLY the final markdown report.`;
+- **Public information only.** Do not invent internal data.
+- **Strict research-period enforcement.** Every \`incidents\` entry and every \`enforcementActions\` entry must describe an event whose date falls inside the research period. Set \`date\` to ISO format: \`YYYY-MM-DD\`, \`YYYY-MM\`, or \`YYYY\` (use the most precise form available). Events outside the period MUST be omitted entirely — even if still open, still litigated, still under a consent decree, or establishing a pattern. \`applicableRegulations\` and \`capacity\` entries are NOT date-bounded — they describe current regulatory scope and structural management capacity as of the report date; pre-period facts are fine there (e.g., "ISO 14001 certified since 2012", "subject to GDPR since 2018").
+- **Evidence threshold.** Include an entry only if supported by EITHER (a) ≥ 2 independent sources — different organizations doing original reporting, not the same wire story republished — OR (b) ≥ 1 primary source (regulator filing, regulation text, court record, SEC/EDGAR document, official agency enforcement action, court docket). Entries that meet neither must be omitted.
+- **Source URIs.** For every entry (across all four arrays), populate \`sourceUris\` with the exact URIs returned by Google Search for that claim. Do not invent URLs.
+- **Source tier.** Set the \`tier\` field on each entry to the highest-tier supporting source:
+  - \`Primary\` — regulator filings, regulation texts, court records, SEC/EDGAR, official agency enforcement actions, court dockets
+  - \`Major news\` — Reuters, FT, WSJ, Bloomberg, NYT, AP, BBC, major broadcast networks
+  - \`Trade/NGO\` — industry trade publications, ratings-agency summaries (MSCI, Sustainalytics, ISS), NGO reports (HRW, Global Witness, Amnesty)
+  - \`Anecdotal\` — Glassdoor, Indeed, Reddit, blogs, forum posts, single anonymous reports
+- **Incidents — cost and remediation.** When public information makes it available, populate \`cost\` (fines paid, settlement amounts, judgments, defense / litigation costs, remediation outlays) and \`remediation\` (corrective actions the company took or was ordered to take — facility upgrades, policy changes, monitoring requirements, executive departures, training programs). Leave empty strings if no public information.
+- **Applicable regulations — depth required.** For each \`applicableRegulations\` entry, populate: \`inScopeReason\` (why this specific company falls in scope), \`thresholds\` (size, turnover, employee count, sector, geography that trigger applicability), \`keyRequirements\` (what the company must do to comply — disclosures, audits, controls, recordkeeping, certifications), \`complianceDeadline\` (in force, phased, or future deadline), \`noncomplianceConsequences\` (fines with amounts/percentages, criminal liability, market access loss, disclosure obligations, civil liability, director personal liability). Cite the regulation text or regulator summary as the primary source. Focus on regulations that materially affect THIS company given its sector, size, and geographic footprint — prefer 3–7 well-explained regulations over an exhaustive list. Orientation by topic (not a checklist): data privacy (GDPR, CCPA, China PIPL, India DPDP); climate (EU CSRD, SEC climate disclosure rules, California SB-253/SB-261); labor (OSHA, NLRA, EU CSDDD, FLSA); ethics (FCPA, UK Bribery Act); selling practices (Dodd-Frank, MiFID II, CFPB rules, FTC Act); food safety (FSMA, EU 178/2002).
+- **Enforcement actions.** Dated regulatory action AGAINST this specific company within the research period — enforcement actions, consent decrees, fines, license/permit issues, ongoing investigations. Also populate \`cost\` and \`remediation\` where available.
+- Be specific: dates, dollar amounts, jurisdictions, party names, case numbers, regulatory IDs.
+- Avoid generic industry statements. Tie every claim to this specific company or its specific facilities.
+- Neutral, factual, IC-appropriate tone. No hedging adjectives, no marketing language.
+
+# OUTPUT
+
+Return ONLY a JSON object conforming to the response schema (enforced programmatically). No preamble, no markdown wrapper, no commentary.
+
+Structure:
+- \`executiveSummary\` — 2–3 sentences on overall risk profile and top 2–3 issues for IC attention
+- \`materialityMatrix\` — one row per assessed topic (include ALL topics, including "Not material")
+- \`findings\` — one entry per Material topic (exclude "Not material"); each finding has \`riskAssessment\` ({level, driver}), \`incidents\`, \`applicableRegulations\`, \`enforcementActions\`, \`capacity\` arrays
+- \`followUps\` — specific seller-side questions/documents addressing gaps in public information`;
 
 let abortController = null;
 
@@ -513,12 +502,15 @@ function buildUserMessage() {
   const industry = $('industry').value.trim();
   const revenue = $('revenue').value.trim() || 'Not specified';
   const countries = $('countries').value.trim() || 'Not specified';
-  const timePeriod = $('timePeriod').value.trim() || 'Past 5 years';
+  const periodStart = $('periodStart').value;
+  const periodEnd = $('periodEnd').value;
   const selectedTopics = TOPICS.filter(t => topicsEl.querySelector(`input[value="${t}"]`).checked);
   const today = new Date().toISOString().split('T')[0];
 
   if (!company) throw new Error('Company name is required.');
   if (!industry) throw new Error('Industry is required.');
+  if (!periodStart || !periodEnd) throw new Error('Research Period start and end dates are required.');
+  if (periodStart > periodEnd) throw new Error('Research Period start date must be on or before the end date.');
   if (selectedTopics.length === 0) throw new Error('Select at least one topic.');
 
   return `# TARGET
@@ -526,13 +518,341 @@ function buildUserMessage() {
 - Industry: ${industry}
 - Annual Revenue: ${revenue}
 - Countries of Operation: ${countries}
-- Research Period: ${timePeriod}
+- Research Period: ${periodStart} to ${periodEnd} (inclusive). Every incident / regulatoryExposure event date MUST fall within this range.
 - Report Date: ${today}
 
 # TOPICS IN SCOPE
 ${selectedTopics.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 
-Conduct the materiality assessment, research material topics using Google Search (focusing on the research period above), and produce the final markdown report. Output ONLY the report.`;
+Run the materiality assessment for ALL topics, research the material ones using Google Search (respecting the research period strictly), and return the report as a JSON object conforming to the response schema. Output ONLY the JSON object — no markdown wrapper, no commentary.`;
+}
+
+const TIERS = ["Primary", "Major news", "Trade/NGO", "Anecdotal"];
+
+const REPORT_SCHEMA = {
+  type: "OBJECT",
+  required: ["executiveSummary", "materialityMatrix", "findings", "followUps"],
+  properties: {
+    executiveSummary: { type: "STRING" },
+    materialityMatrix: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        required: ["topic", "materiality", "rationale"],
+        properties: {
+          topic: { type: "STRING" },
+          materiality: { type: "STRING", enum: ["High", "Medium", "Low", "Not material"] },
+          rationale: { type: "STRING" }
+        }
+      }
+    },
+    findings: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        required: ["topic", "materiality", "riskAssessment", "incidents", "applicableRegulations", "enforcementActions", "capacity"],
+        properties: {
+          topic: { type: "STRING" },
+          materiality: { type: "STRING", enum: ["High", "Medium", "Low"] },
+          riskAssessment: {
+            type: "OBJECT",
+            required: ["level", "driver"],
+            properties: {
+              level: { type: "STRING", enum: ["Low", "Moderate", "Elevated", "High"] },
+              driver: { type: "STRING" }
+            }
+          },
+          incidents: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              required: ["date", "description", "sourceUris", "tier"],
+              properties: {
+                date: { type: "STRING", description: "ISO YYYY-MM-DD, YYYY-MM, or YYYY" },
+                description: { type: "STRING" },
+                jurisdiction: { type: "STRING" },
+                parties: { type: "STRING" },
+                cost: { type: "STRING", description: "fines, settlements, judgments, defense/litigation costs, remediation outlays — where public info makes it available" },
+                remediation: { type: "STRING", description: "corrective actions taken or ordered — facility upgrades, policy changes, monitoring requirements, executive departures, training programs" },
+                sourceUris: { type: "ARRAY", items: { type: "STRING" } },
+                tier: { type: "STRING", enum: TIERS }
+              }
+            }
+          },
+          applicableRegulations: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              required: ["name", "jurisdiction", "inScopeReason", "keyRequirements", "noncomplianceConsequences", "sourceUris", "tier"],
+              properties: {
+                name: { type: "STRING", description: "regulation name with citation, e.g., 'EU CSRD (Directive 2022/2464)'" },
+                jurisdiction: { type: "STRING" },
+                regulator: { type: "STRING" },
+                inScopeReason: { type: "STRING", description: "why this specific company falls in scope" },
+                thresholds: { type: "STRING", description: "applicability thresholds — size, turnover, employee count, sector, geography" },
+                keyRequirements: { type: "STRING", description: "what the company must do to comply" },
+                complianceDeadline: { type: "STRING", description: "in force, phased, or future deadline" },
+                noncomplianceConsequences: { type: "STRING", description: "fines, criminal liability, market access loss, disclosure obligations, civil/director liability" },
+                sourceUris: { type: "ARRAY", items: { type: "STRING" } },
+                tier: { type: "STRING", enum: TIERS }
+              }
+            }
+          },
+          enforcementActions: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              required: ["date", "description", "regulator", "sourceUris", "tier"],
+              properties: {
+                date: { type: "STRING", description: "ISO YYYY-MM-DD, YYYY-MM, or YYYY" },
+                description: { type: "STRING" },
+                regulator: { type: "STRING" },
+                jurisdiction: { type: "STRING" },
+                cost: { type: "STRING", description: "fine amount, settlement, penalty" },
+                remediation: { type: "STRING", description: "consent decree terms, required corrective actions" },
+                sourceUris: { type: "ARRAY", items: { type: "STRING" } },
+                tier: { type: "STRING", enum: TIERS }
+              }
+            }
+          },
+          capacity: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              required: ["description", "sourceUris", "tier"],
+              properties: {
+                description: { type: "STRING" },
+                sourceUris: { type: "ARRAY", items: { type: "STRING" } },
+                tier: { type: "STRING", enum: TIERS }
+              }
+            }
+          }
+        }
+      }
+    },
+    followUps: {
+      type: "ARRAY",
+      items: { type: "STRING" }
+    }
+  }
+};
+
+// Parse YYYY, YYYY-MM, or YYYY-MM-DD into a UTC date range [start, end].
+function parseFlexibleDate(str) {
+  if (!str || typeof str !== 'string') return null;
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str.trim());
+  if (m) {
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return { start: d, end: d };
+  }
+  m = /^(\d{4})-(\d{2})$/.exec(str.trim());
+  if (m) {
+    const y = +m[1], mo = +m[2];
+    return {
+      start: new Date(Date.UTC(y, mo - 1, 1)),
+      end: new Date(Date.UTC(y, mo, 0))
+    };
+  }
+  m = /^(\d{4})$/.exec(str.trim());
+  if (m) {
+    return {
+      start: new Date(Date.UTC(+m[1], 0, 1)),
+      end: new Date(Date.UTC(+m[1], 11, 31))
+    };
+  }
+  return null;
+}
+
+// Returns true if event range intersects the research period; false if outside; null if unparseable.
+function isInPeriod(eventDateStr, periodStart, periodEnd) {
+  const event = parseFlexibleDate(eventDateStr);
+  if (!event) return null;
+  const pStart = new Date(periodStart + 'T00:00:00Z');
+  const pEnd = new Date(periodEnd + 'T23:59:59Z');
+  return event.end >= pStart && event.start <= pEnd;
+}
+
+// Drops entries that violate the research-period and evidence-threshold rules.
+// Returns { report (deep-cloned, cleaned), warnings (string[]) }.
+function validateReport(report, periodStart, periodEnd) {
+  const warnings = [];
+  const cleaned = JSON.parse(JSON.stringify(report));
+  const snippet = s => (s || '').slice(0, 80) + ((s || '').length > 80 ? '…' : '');
+
+  const itemLabel = item => item.description || item.name || '';
+
+  const filterByPeriod = (items, kind, topic) => items.filter(item => {
+    const inPeriod = isInPeriod(item.date, periodStart, periodEnd);
+    if (inPeriod === false) {
+      warnings.push(`Dropped ${topic} ${kind} dated ${item.date} (outside research period): ${snippet(itemLabel(item))}`);
+      return false;
+    }
+    if (inPeriod === null) {
+      warnings.push(`${topic} ${kind} has unparseable date "${item.date}" — kept but flagged: ${snippet(itemLabel(item))}`);
+    }
+    return true;
+  });
+
+  const filterByEvidence = (items, kind, topic) => items.filter(item => {
+    const srcs = Array.isArray(item.sourceUris) ? item.sourceUris.filter(Boolean) : [];
+    const hasPrimary = item.tier === 'Primary';
+    if (srcs.length >= 2 || (hasPrimary && srcs.length >= 1)) return true;
+    warnings.push(`Dropped ${topic} ${kind} (insufficient evidence: ${srcs.length} source(s), tier "${item.tier}"): ${snippet(itemLabel(item))}`);
+    return false;
+  });
+
+  for (const finding of (cleaned.findings || [])) {
+    const t = finding.topic || '(unknown topic)';
+    finding.incidents = filterByEvidence(filterByPeriod(finding.incidents || [], 'incident', t), 'incident', t);
+    finding.applicableRegulations = filterByEvidence(finding.applicableRegulations || [], 'applicable regulation', t);
+    finding.enforcementActions = filterByEvidence(filterByPeriod(finding.enforcementActions || [], 'enforcement action', t), 'enforcement action', t);
+    finding.capacity = filterByEvidence(finding.capacity || [], 'capacity item', t);
+  }
+
+  return { report: cleaned, warnings };
+}
+
+// Walks all entries, assigns deterministic reference numbers by first-appearance order,
+// and annotates each entry with sourceRefs (number[]). Titles come from groundingChunks
+// when available, else fall back to the URI.
+function assembleReferences(report, groundingChunks) {
+  const chunkTitle = new Map();
+  for (const c of (groundingChunks || [])) {
+    if (c && c.web && c.web.uri) chunkTitle.set(c.web.uri, c.web.title || c.web.uri);
+  }
+  const uriToNum = new Map();
+  const references = [];
+  const addUri = uri => {
+    if (!uri) return null;
+    if (uriToNum.has(uri)) return uriToNum.get(uri);
+    const num = references.length + 1;
+    uriToNum.set(uri, num);
+    references.push({ num, uri, title: chunkTitle.get(uri) || uri });
+    return num;
+  };
+  const annotate = items => (items || []).forEach(item => {
+    item.sourceRefs = (item.sourceUris || []).map(addUri).filter(n => n != null);
+  });
+  for (const finding of (report.findings || [])) {
+    annotate(finding.incidents);
+    annotate(finding.applicableRegulations);
+    annotate(finding.enforcementActions);
+    annotate(finding.capacity);
+  }
+  return { report, references };
+}
+
+// Render the validated report object to a markdown string.
+function renderReportMarkdown(report, target, today) {
+  const out = [];
+  out.push('# Outside-In Due Diligence Report', '');
+  out.push(`**Target:** ${target.company} | **Industry:** ${target.industry} | **Revenue:** ${target.revenue} | **Geography:** ${target.countries}  `);
+  out.push(`**Research Period:** ${target.periodStart} to ${target.periodEnd} | **Report Date:** ${today} | **Basis:** Public information only`, '');
+
+  out.push('## Executive Summary', '', (report.executiveSummary || '').trim(), '');
+
+  out.push('## Materiality Matrix', '', '| Topic | Materiality | Rationale |', '|---|---|---|');
+  for (const row of (report.materialityMatrix || [])) {
+    const rationale = (row.rationale || '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+    out.push(`| ${row.topic} | ${row.materiality} | ${rationale} |`);
+  }
+  out.push('');
+
+  out.push('## Findings', '');
+  const order = { High: 0, Medium: 1, Low: 2 };
+  const sorted = (report.findings || []).slice().sort((a, b) =>
+    (order[a.materiality] ?? 99) - (order[b.materiality] ?? 99)
+  );
+
+  const refMarker = refs => (refs && refs.length)
+    ? ' ' + refs.map(n => `<sup><a href="#ref-${n}">[${n}]</a></sup>`).join('')
+    : '';
+  const subBullet = (label, value) => (value && String(value).trim())
+    ? `  - *${label}:* ${String(value).trim()}`
+    : null;
+  const pushSubBullets = pairs => {
+    for (const [label, value] of pairs) {
+      const sb = subBullet(label, value);
+      if (sb) out.push(sb);
+    }
+  };
+
+  for (const f of sorted) {
+    out.push(`### ${f.topic} — ${f.materiality}`, '');
+    const ra = f.riskAssessment || {};
+    out.push(`**Risk Assessment:** ${ra.level || '—'} — ${ra.driver || ''}`.trim(), '');
+
+    out.push('**Incidents.**', '');
+    if (!f.incidents || !f.incidents.length) {
+      out.push('- None identified in the research period.');
+    } else {
+      for (const inc of f.incidents) {
+        const meta = [inc.date, inc.jurisdiction, inc.parties].filter(Boolean).join(' · ');
+        out.push(`- ${meta ? meta + ' — ' : ''}${inc.description} [${inc.tier}]${refMarker(inc.sourceRefs)}`);
+        pushSubBullets([['Cost', inc.cost], ['Remediation', inc.remediation]]);
+      }
+    }
+    out.push('');
+
+    out.push('**Regulatory Exposure.**', '');
+
+    out.push('*Applicable regulations:*', '');
+    if (!f.applicableRegulations || !f.applicableRegulations.length) {
+      out.push('- No specific in-scope regulations identified.');
+    } else {
+      for (const r of f.applicableRegulations) {
+        const meta = [r.jurisdiction, r.regulator].filter(Boolean).join(' · ');
+        out.push(`- **${r.name}**${meta ? ' — ' + meta : ''} [${r.tier}]${refMarker(r.sourceRefs)}`);
+        pushSubBullets([
+          ['In scope', r.inScopeReason],
+          ['Thresholds', r.thresholds],
+          ['Key requirements', r.keyRequirements],
+          ['Compliance deadline', r.complianceDeadline],
+          ['Noncompliance consequences', r.noncomplianceConsequences]
+        ]);
+      }
+    }
+    out.push('');
+
+    out.push('*Enforcement actions:*', '');
+    if (!f.enforcementActions || !f.enforcementActions.length) {
+      out.push('- No active enforcement actions identified in the research period.');
+    } else {
+      for (const e of f.enforcementActions) {
+        const meta = [e.date, e.regulator, e.jurisdiction].filter(Boolean).join(' · ');
+        out.push(`- ${meta ? meta + ' — ' : ''}${e.description} [${e.tier}]${refMarker(e.sourceRefs)}`);
+        pushSubBullets([['Cost', e.cost], ['Remediation', e.remediation]]);
+      }
+    }
+    out.push('');
+
+    out.push('**Capacity to Manage.**', '');
+    if (!f.capacity || !f.capacity.length) {
+      out.push('- No public evidence of formal management capacity for this topic.');
+    } else {
+      for (const c of f.capacity) {
+        out.push(`- ${c.description} [${c.tier}]${refMarker(c.sourceRefs)}`);
+      }
+    }
+    out.push('');
+  }
+
+  if (report.followUps && report.followUps.length) {
+    out.push('## Recommended Diligence Follow-ups', '');
+    for (const q of report.followUps) out.push(`- ${q}`);
+    out.push('');
+  }
+
+  return out.join('\n');
+}
+
+// Strip optional ```json fences and trim. The model sometimes wraps despite instructions.
+function stripJsonFence(s) {
+  let t = s.trim();
+  if (t.startsWith('```')) {
+    t = t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+  }
+  return t.trim();
 }
 
 function thinkingBudgetFor(model, mode) {
@@ -594,28 +914,11 @@ async function generate() {
   const reportEl = $('report');
   const activityEl = $('activity');
   let reportText = '';
-  let renderTimer = null;
-
-  // grounding state — keep the latest full groundingMetadata so its
-  // groundingSupports.groundingChunkIndices stay valid against its own chunks
   let lastGroundingMetadata = null;
   const searchQueriesSeen = new Set();
   let searchSuggestionsHtml = null;
   let totalUsage = null;
   let finishReason = null;
-
-  function scheduleRender() {
-    if (renderTimer) return;
-    renderTimer = setTimeout(() => {
-      renderTimer = null;
-      const html = DOMPurify.sanitize(marked.parse(reportText));
-      reportEl.innerHTML = html;
-      reportEl.querySelectorAll('a').forEach(a => {
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-      });
-    }, 180);
-  }
 
   function logActivity(text, cls) {
     const div = document.createElement('div');
@@ -636,6 +939,8 @@ async function generate() {
     generationConfig: {
       maxOutputTokens: 32000,
       temperature: 0.2,
+      responseMimeType: 'application/json',
+      responseSchema: REPORT_SCHEMA,
       thinkingConfig: {
         thinkingBudget: thinkingBudget,
         includeThoughts: true
@@ -700,7 +1005,6 @@ async function generate() {
                 if (snippet) logActivity(`💭 ${snippet}…`, 'think');
               } else if (typeof part.text === 'string') {
                 reportText += part.text;
-                scheduleRender();
               }
             }
           }
@@ -725,24 +1029,92 @@ async function generate() {
       }
     }
 
-    // Inject inline citation markers using groundingSupports → build References list
-    let references = [];
-    if (lastGroundingMetadata) {
-      const result = injectInlineCitations(reportText, lastGroundingMetadata);
-      reportText = result.text;
-      references = result.references;
+    // Diagnostics — inspect via DevTools console if a report comes back empty.
+    console.log('[outside-in] raw model output (' + reportText.length + ' chars):', reportText);
+    console.log('[outside-in] finish reason:', finishReason);
+    console.log('[outside-in] usage:', totalUsage);
+    window.__outsideInLast = { reportText, finishReason, groundingMetadata: lastGroundingMetadata };
+
+    if (!reportText.trim()) {
+      throw new Error(
+        `Model returned no content (finishReason: ${finishReason || 'unknown'}). ` +
+        `This usually means responseSchema + Google Search grounding conflicted. ` +
+        `Check the browser console (window.__outsideInLast) for full details.`
+      );
     }
 
-    if (renderTimer) clearTimeout(renderTimer);
+    // Parse the JSON the model produced (it should conform to REPORT_SCHEMA).
+    let parsedReport;
+    try {
+      parsedReport = JSON.parse(stripJsonFence(reportText));
+    } catch (e) {
+      throw new Error('Model returned invalid JSON. Raw output starts: ' + reportText.slice(0, 300));
+    }
+    console.log('[outside-in] parsed report:', parsedReport);
+
+    // Validate against research-period and evidence-threshold rules.
+    const periodStart = $('periodStart').value;
+    const periodEnd = $('periodEnd').value;
+    const { report: cleanedReport, warnings } = validateReport(parsedReport, periodStart, periodEnd);
+    console.log('[outside-in] cleaned report:', cleanedReport, 'warnings:', warnings);
+    window.__outsideInLast.parsed = parsedReport;
+    window.__outsideInLast.cleaned = cleanedReport;
+    window.__outsideInLast.warnings = warnings;
+
+    // If everything is empty, surface that explicitly — better than a blank page.
+    const hasContent =
+      (parsedReport.executiveSummary && parsedReport.executiveSummary.trim()) ||
+      (Array.isArray(parsedReport.materialityMatrix) && parsedReport.materialityMatrix.length) ||
+      (Array.isArray(parsedReport.findings) && parsedReport.findings.length);
+    if (!hasContent) {
+      const diag = document.createElement('div');
+      diag.className = 'warning';
+      diag.innerHTML =
+        `<strong>Model returned empty content.</strong>` +
+        `<ul>` +
+          `<li>finishReason: <code>${escapeHtml(finishReason || 'unknown')}</code></li>` +
+          `<li>raw output length: ${reportText.length} chars</li>` +
+          `<li>Inspect the full response in the browser console (Cmd+Option+I) — variable <code>window.__outsideInLast</code></li>` +
+        `</ul>` +
+        `<details><summary>Raw response (click to expand)</summary><pre style="white-space:pre-wrap;word-break:break-word;font-size:11px;margin-top:8px;">${escapeHtml(reportText.slice(0, 4000))}${reportText.length > 4000 ? '\n…(truncated)' : ''}</pre></details>`;
+      output.prepend(diag);
+    }
+
+    // Assemble deterministic reference numbering from URIs the model cited,
+    // borrowing titles from groundingChunks where available.
+    const groundingChunks = (lastGroundingMetadata && lastGroundingMetadata.groundingChunks) || [];
+    const { references } = assembleReferences(cleanedReport, groundingChunks);
+
+    // Render markdown from the validated object.
+    const target = {
+      company: $('company').value.trim(),
+      industry: $('industry').value.trim(),
+      revenue: $('revenue').value.trim() || 'Not specified',
+      countries: $('countries').value.trim() || 'Not specified',
+      periodStart,
+      periodEnd
+    };
+    const today = new Date().toISOString().split('T')[0];
+    const renderedMarkdown = renderReportMarkdown(cleanedReport, target, today);
+
+    // Surface validation warnings above the report.
+    if (warnings.length) {
+      const w = document.createElement('div');
+      w.className = 'warning';
+      w.innerHTML = `<strong>Validation — ${warnings.length} entr${warnings.length === 1 ? 'y' : 'ies'} adjusted</strong><ul>${
+        warnings.map(s => `<li>${escapeHtml(s)}</li>`).join('')
+      }</ul>`;
+      output.prepend(w);
+    }
+
     reportEl.innerHTML = DOMPurify.sanitize(
-      marked.parse(reportText),
+      marked.parse(renderedMarkdown),
       { ADD_TAGS: ['sup'], ADD_ATTR: ['id'] }
     );
     reportEl.querySelectorAll('a[href^="http"]').forEach(a => {
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
     });
-    // Smooth-scroll citation links to their reference list item
     reportEl.querySelectorAll('a[href^="#ref-"]').forEach(a => {
       a.addEventListener('click', e => {
         const id = a.getAttribute('href').slice(1);
@@ -801,15 +1173,16 @@ async function generate() {
     const actions = document.createElement('div');
     actions.className = 'report-actions';
     actions.innerHTML = `
+      <button id="copyJson">Copy JSON</button>
       <button id="copyMd">Copy Markdown</button>
       <button id="downloadMd">Download .md</button>
+      <button id="downloadDocx">Download .docx</button>
       <button id="print">Print / Save PDF</button>
     `;
     output.appendChild(actions);
 
     function buildMarkdownExport() {
-      // Replace HTML citation markers with plain [N]
-      const plain = reportText.replace(
+      const plain = renderedMarkdown.replace(
         /<sup><a href="#ref-(\d+)">\[(\d+)\]<\/a><\/sup>/g,
         '[$2]'
       );
@@ -819,7 +1192,15 @@ async function generate() {
         : '';
       return plain + refsMd;
     }
+    function buildJsonExport() {
+      return JSON.stringify({ target, today, report: cleanedReport, references }, null, 2);
+    }
 
+    $('copyJson').onclick = () => {
+      navigator.clipboard.writeText(buildJsonExport());
+      $('copyJson').textContent = 'Copied!';
+      setTimeout(() => $('copyJson').textContent = 'Copy JSON', 1500);
+    };
     $('copyMd').onclick = () => {
       navigator.clipboard.writeText(buildMarkdownExport());
       $('copyMd').textContent = 'Copied!';
@@ -834,6 +1215,29 @@ async function generate() {
       a.download = `outside_in_dd_${co}_${new Date().toISOString().split('T')[0]}.md`;
       a.click();
       URL.revokeObjectURL(url);
+    };
+    $('downloadDocx').onclick = async () => {
+      const btn = $('downloadDocx');
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Building…';
+      try {
+        await loadDocxLib();
+        const blob = await buildDocxBlob(cleanedReport, references, target, today);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const co = ($('company').value || 'target').replace(/[^a-z0-9]/gi, '_');
+        a.download = `outside_in_dd_${co}_${new Date().toISOString().split('T')[0]}.docx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        btn.textContent = 'Downloaded';
+        setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500);
+      } catch (e) {
+        showError('Word export failed: ' + e.message);
+        btn.textContent = orig;
+        btn.disabled = false;
+      }
     };
     $('print').onclick = () => window.print();
 
@@ -863,84 +1267,228 @@ function escapeAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
-// Gemini's groundingSupports use UTF-8 byte offsets into the streamed text.
-// Convert a byte offset to a JS string (UTF-16) index.
-function byteToCharOffset(text, byteOffset) {
-  if (byteOffset <= 0) return 0;
-  let bytes = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (bytes >= byteOffset) return i;
-    const code = text.codePointAt(i);
-    if (code < 0x80) bytes += 1;
-    else if (code < 0x800) bytes += 2;
-    else if (code < 0x10000) bytes += 3;
-    else { bytes += 4; i++; } // surrogate pair: consume two JS chars
-  }
-  return text.length;
+// Lazy-load the docx library on first .docx export request.
+let docxLibPromise = null;
+function loadDocxLib() {
+  if (window.docx && window.docx.Document) return Promise.resolve();
+  if (docxLibPromise) return docxLibPromise;
+  const url = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js';
+  docxLibPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = () => {
+      if (window.docx && window.docx.Document) resolve();
+      else reject(new Error('docx library loaded but global not found'));
+    };
+    s.onerror = () => {
+      docxLibPromise = null;
+      reject(new Error('Failed to load docx library from ' + url));
+    };
+    document.head.appendChild(s);
+  });
+  return docxLibPromise;
 }
 
-// Use groundingSupports to insert citation markers next to grounded text spans.
-// Returns { text, references } where references is [{ num, uri, title }].
-function injectInlineCitations(text, gm) {
-  const chunks = Array.isArray(gm.groundingChunks) ? gm.groundingChunks : [];
-  const supports = Array.isArray(gm.groundingSupports) ? gm.groundingSupports : [];
+async function buildDocxBlob(report, references, target, today) {
+  const {
+    Document, Packer, Paragraph, TextRun, HeadingLevel,
+    Table, TableRow, TableCell, WidthType,
+    ExternalHyperlink
+  } = window.docx;
 
-  // Collect refs in order of first appearance (sorted by segment end position).
-  const supportsByPos = supports
-    .filter(s => s && s.segment && typeof s.segment.endIndex === 'number')
-    .slice()
-    .sort((a, b) => a.segment.endIndex - b.segment.endIndex);
+  const children = [];
 
-  const uriToNum = new Map();
-  const references = [];
-  for (const s of supportsByPos) {
-    for (const idx of (s.groundingChunkIndices || [])) {
-      const c = chunks[idx];
-      const uri = c && c.web && c.web.uri;
-      if (!uri || uriToNum.has(uri)) continue;
-      const num = references.length + 1;
-      uriToNum.set(uri, num);
-      references.push({
-        num,
-        uri,
-        title: (c.web.title || uri).toString()
-      });
+  children.push(new Paragraph({
+    text: 'Outside-In Due Diligence Report',
+    heading: HeadingLevel.TITLE
+  }));
+
+  children.push(new Paragraph({
+    children: [
+      new TextRun({ text: 'Target: ', bold: true }), new TextRun({ text: target.company }),
+      new TextRun({ text: '   |   Industry: ', bold: true }), new TextRun({ text: target.industry }),
+      new TextRun({ text: '   |   Revenue: ', bold: true }), new TextRun({ text: target.revenue }),
+      new TextRun({ text: '   |   Geography: ', bold: true }), new TextRun({ text: target.countries })
+    ]
+  }));
+  children.push(new Paragraph({
+    children: [
+      new TextRun({ text: 'Research Period: ', bold: true }),
+      new TextRun({ text: `${target.periodStart} to ${target.periodEnd}` }),
+      new TextRun({ text: '   |   Report Date: ', bold: true }), new TextRun({ text: today }),
+      new TextRun({ text: '   |   Basis: ', bold: true }),
+      new TextRun({ text: 'Public information only', italics: true })
+    ]
+  }));
+
+  children.push(new Paragraph({ text: 'Executive Summary', heading: HeadingLevel.HEADING_1 }));
+  children.push(new Paragraph({ text: report.executiveSummary || '' }));
+
+  children.push(new Paragraph({ text: 'Materiality Matrix', heading: HeadingLevel.HEADING_1 }));
+  const headerCell = text => new TableCell({
+    children: [new Paragraph({ children: [new TextRun({ text, bold: true })] })]
+  });
+  const bodyCell = text => new TableCell({ children: [new Paragraph({ text: text || '' })] });
+  const matrixRows = [
+    new TableRow({
+      tableHeader: true,
+      children: [headerCell('Topic'), headerCell('Materiality'), headerCell('Rationale')]
+    }),
+    ...(report.materialityMatrix || []).map(row => new TableRow({
+      children: [bodyCell(row.topic), bodyCell(row.materiality), bodyCell(row.rationale)]
+    }))
+  ];
+  children.push(new Table({
+    rows: matrixRows,
+    width: { size: 100, type: WidthType.PERCENTAGE }
+  }));
+
+  children.push(new Paragraph({ text: 'Findings', heading: HeadingLevel.HEADING_1 }));
+
+  const order = { High: 0, Medium: 1, Low: 2 };
+  const sortedFindings = (report.findings || []).slice().sort((a, b) =>
+    (order[a.materiality] ?? 99) - (order[b.materiality] ?? 99)
+  );
+
+  const refRuns = refs => (refs || []).map(n =>
+    new TextRun({ text: `[${n}]`, superScript: true, color: '3B82F6' })
+  );
+  const tierRun = tier => new TextRun({ text: ` [${tier}]`, color: '64748B' });
+
+  const bullet = runs => new Paragraph({ children: runs, bullet: { level: 0 } });
+  const bulletText = text => new Paragraph({ text, bullet: { level: 0 } });
+  const bold = text => new Paragraph({ children: [new TextRun({ text, bold: true })] });
+  const italicLabel = text => new Paragraph({
+    children: [new TextRun({ text, italics: true })]
+  });
+  const subBulletDocx = (label, value) => {
+    if (!value || !String(value).trim()) return null;
+    return new Paragraph({
+      children: [
+        new TextRun({ text: `${label}: `, italics: true, bold: true }),
+        new TextRun({ text: String(value).trim() })
+      ],
+      bullet: { level: 1 }
+    });
+  };
+  const pushSubBulletsDocx = pairs => {
+    for (const [label, value] of pairs) {
+      const sb = subBulletDocx(label, value);
+      if (sb) children.push(sb);
+    }
+  };
+
+  for (const f of sortedFindings) {
+    children.push(new Paragraph({
+      text: `${f.topic} — ${f.materiality}`,
+      heading: HeadingLevel.HEADING_2
+    }));
+
+    const ra = f.riskAssessment || {};
+    children.push(new Paragraph({
+      children: [
+        new TextRun({ text: 'Risk Assessment: ', bold: true }),
+        new TextRun({ text: `${ra.level || '—'} — ${ra.driver || ''}` })
+      ]
+    }));
+
+    children.push(bold('Incidents.'));
+    if (!f.incidents || !f.incidents.length) {
+      children.push(bulletText('None identified in the research period.'));
+    } else {
+      for (const inc of f.incidents) {
+        const meta = [inc.date, inc.jurisdiction, inc.parties].filter(Boolean).join(' · ');
+        const runs = [];
+        if (meta) runs.push(new TextRun({ text: meta + ' — ', italics: true }));
+        runs.push(new TextRun({ text: inc.description || '' }));
+        if (inc.tier) runs.push(tierRun(inc.tier));
+        runs.push(...refRuns(inc.sourceRefs));
+        children.push(bullet(runs));
+        pushSubBulletsDocx([['Cost', inc.cost], ['Remediation', inc.remediation]]);
+      }
+    }
+
+    children.push(bold('Regulatory Exposure.'));
+
+    children.push(italicLabel('Applicable regulations:'));
+    if (!f.applicableRegulations || !f.applicableRegulations.length) {
+      children.push(bulletText('No specific in-scope regulations identified.'));
+    } else {
+      for (const r of f.applicableRegulations) {
+        const meta = [r.jurisdiction, r.regulator].filter(Boolean).join(' · ');
+        const runs = [new TextRun({ text: r.name || '', bold: true })];
+        if (meta) runs.push(new TextRun({ text: ' — ' + meta }));
+        if (r.tier) runs.push(tierRun(r.tier));
+        runs.push(...refRuns(r.sourceRefs));
+        children.push(bullet(runs));
+        pushSubBulletsDocx([
+          ['In scope', r.inScopeReason],
+          ['Thresholds', r.thresholds],
+          ['Key requirements', r.keyRequirements],
+          ['Compliance deadline', r.complianceDeadline],
+          ['Noncompliance consequences', r.noncomplianceConsequences]
+        ]);
+      }
+    }
+
+    children.push(italicLabel('Enforcement actions:'));
+    if (!f.enforcementActions || !f.enforcementActions.length) {
+      children.push(bulletText('No active enforcement actions identified in the research period.'));
+    } else {
+      for (const e of f.enforcementActions) {
+        const meta = [e.date, e.regulator, e.jurisdiction].filter(Boolean).join(' · ');
+        const runs = [];
+        if (meta) runs.push(new TextRun({ text: meta + ' — ', italics: true }));
+        runs.push(new TextRun({ text: e.description || '' }));
+        if (e.tier) runs.push(tierRun(e.tier));
+        runs.push(...refRuns(e.sourceRefs));
+        children.push(bullet(runs));
+        pushSubBulletsDocx([['Cost', e.cost], ['Remediation', e.remediation]]);
+      }
+    }
+
+    children.push(bold('Capacity to Manage.'));
+    if (!f.capacity || !f.capacity.length) {
+      children.push(bulletText('No public evidence of formal management capacity for this topic.'));
+    } else {
+      for (const c of f.capacity) {
+        const runs = [new TextRun({ text: c.description || '' })];
+        if (c.tier) runs.push(tierRun(c.tier));
+        runs.push(...refRuns(c.sourceRefs));
+        children.push(bullet(runs));
+      }
     }
   }
 
-  // Fallback: if there were chunks but no supports, expose them as bare references
-  // so the user still sees what Google retrieved.
-  if (!references.length) {
-    for (const c of chunks) {
-      const uri = c && c.web && c.web.uri;
-      if (!uri || uriToNum.has(uri)) continue;
-      const num = references.length + 1;
-      uriToNum.set(uri, num);
-      references.push({ num, uri, title: (c.web.title || uri).toString() });
+  if (report.followUps && report.followUps.length) {
+    children.push(new Paragraph({ text: 'Recommended Diligence Follow-ups', heading: HeadingLevel.HEADING_1 }));
+    for (const q of report.followUps) children.push(bulletText(q));
+  }
+
+  if (references && references.length) {
+    children.push(new Paragraph({ text: 'References', heading: HeadingLevel.HEADING_1 }));
+    for (const r of references) {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `${r.num}. ` }),
+          new ExternalHyperlink({
+            link: r.uri,
+            children: [new TextRun({ text: r.title, style: 'Hyperlink' })]
+          })
+        ]
+      }));
     }
-    return { text, references };
   }
 
-  // Insert markers from the end of the text backward, so earlier offsets stay valid.
-  const supportsDesc = supportsByPos.slice().reverse();
-  let out = text;
-  for (const s of supportsDesc) {
-    const nums = (s.groundingChunkIndices || [])
-      .map(idx => chunks[idx] && chunks[idx].web && chunks[idx].web.uri)
-      .filter(Boolean)
-      .map(uri => uriToNum.get(uri))
-      .filter(Boolean);
-    if (!nums.length) continue;
-    const unique = [...new Set(nums)].sort((a, b) => a - b);
-    const charPos = byteToCharOffset(out, s.segment.endIndex);
-    const marker = unique
-      .map(n => `<sup><a href="#ref-${n}">[${n}]</a></sup>`)
-      .join('');
-    out = out.slice(0, charPos) + marker + out.slice(charPos);
-  }
+  const doc = new Document({
+    creator: 'Outside-In Due Diligence',
+    title: 'Outside-In Due Diligence — ' + target.company,
+    sections: [{ children }]
+  });
 
-  return { text: out, references };
+  return await Packer.toBlob(doc);
 }
+
 </script>
 </body>
 </html>
