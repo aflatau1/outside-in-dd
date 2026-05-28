@@ -1379,20 +1379,22 @@ async function buildDocxBlob(report, references, target, today) {
   children.push(new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { after: 120 },
-    children: [new TextRun({ text: target.company, size: 40, color: '475569' })]
+    children: [new TextRun({ text: target.company, size: 32, color: '475569' })]
   }));
 
   // Meta block pushed into the lower third of the page via large spacing.before
   // on the first meta line — much more reliable than stacking empty paragraphs.
+  // size: 20 = 10pt — small enough that all six lines (including italic basis)
+  // fit comfortably on the cover page without overflowing onto page 2.
   const coverLine = (text, opts = {}) => new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { after: 80 },
-    children: [new TextRun({ text, ...opts })]
+    children: [new TextRun({ text, size: 20, ...opts })]
   });
   children.push(new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { before: 5760, after: 80 }, // ~4 inches of vertical air
-    children: [new TextRun({ text: target.industry })]
+    children: [new TextRun({ text: target.industry, size: 20 })]
   }));
   children.push(coverLine(`Revenue: ${target.revenue}`));
   children.push(coverLine(`Geography: ${target.countries}`));
@@ -1593,18 +1595,18 @@ async function buildDocxBlob(report, references, target, today) {
       text: 'References',
       heading: HeadingLevel.HEADING_1
     }));
-    // 8pt font (size is in half-points) with no extra paragraph spacing
-    // so 30–40 sources comfortably fit on one page. keepLines keeps a
-    // single long reference from splitting across pages mid-entry.
+    // 9pt font with zero paragraph spacing so 30–40 sources still fit on
+    // one page. keepLines keeps a single long reference from splitting
+    // across pages mid-entry.
     for (const r of references) {
       children.push(new Paragraph({
         spacing: { before: 0, after: 0, line: 240 },
         keepLines: true,
         children: [
-          new TextRun({ text: `${r.num}. `, size: 16 }),
+          new TextRun({ text: `${r.num}. `, size: 18 }),
           new ExternalHyperlink({
             link: r.uri,
-            children: [new TextRun({ text: r.title, style: 'Hyperlink', size: 16 })]
+            children: [new TextRun({ text: r.title, style: 'Hyperlink', size: 18 })]
           })
         ]
       }));
