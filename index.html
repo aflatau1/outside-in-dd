@@ -487,13 +487,39 @@ Run as many targeted queries as you need to develop confidence. **Absence of red
 
 # OUTPUT
 
-Return ONLY a JSON object conforming to the response schema (enforced programmatically). No preamble, no markdown wrapper, no commentary.
+Return ONLY a single JSON object. No preamble. No markdown wrapper (no \`\`\`json fences). No commentary. No trailing text. Your entire response must start with \`{\` and end with \`}\` and be parseable by JSON.parse.
 
-Structure:
-- \`executiveSummary\` — 2–3 sentences on overall risk profile and top 2–3 issues for IC attention
-- \`materialityMatrix\` — one row per assessed topic (include ALL topics, including "Not material")
-- \`findings\` — one entry per Material topic (exclude "Not material"); each finding has \`riskAssessment\` ({level, driver}), \`incidents\`, \`applicableRegulations\`, \`enforcementActions\`, \`capacity\` arrays
-- \`followUps\` — specific seller-side questions/documents addressing gaps in public information`;
+Top-level shape (all four keys required):
+\`\`\`
+{
+  "executiveSummary": "2–3 sentences on overall risk profile and top 2–3 issues for IC attention",
+  "materialityMatrix": [
+    { "topic": "<topic>", "materiality": "High|Medium|Low|Not material", "rationale": "<one line>" }
+  ],
+  "findings": [
+    {
+      "topic": "<topic>",
+      "materiality": "High|Medium|Low",
+      "riskAssessment": { "level": "Low|Moderate|Elevated|High", "driver": "<one sentence>" },
+      "incidents": [
+        { "date": "YYYY-MM-DD|YYYY-MM|YYYY", "description": "...", "jurisdiction": "...", "parties": "...", "cost": "...", "remediation": "...", "sourceUris": ["..."], "tier": "Primary|Major news|Trade/NGO|Anecdotal" }
+      ],
+      "applicableRegulations": [
+        { "name": "...", "jurisdiction": "...", "regulator": "...", "inScopeReason": "...", "thresholds": "...", "keyRequirements": "...", "complianceDeadline": "...", "noncomplianceConsequences": "...", "sourceUris": ["..."], "tier": "Primary|Major news|Trade/NGO|Anecdotal" }
+      ],
+      "enforcementActions": [
+        { "date": "YYYY-MM-DD|YYYY-MM|YYYY", "description": "...", "regulator": "...", "jurisdiction": "...", "cost": "...", "remediation": "...", "sourceUris": ["..."], "tier": "Primary|Major news|Trade/NGO|Anecdotal" }
+      ],
+      "capacity": [
+        { "description": "...", "sourceUris": ["..."], "tier": "Primary|Major news|Trade/NGO|Anecdotal" }
+      ]
+    }
+  ],
+  "followUps": ["<seller-side question or document request>"]
+}
+\`\`\`
+
+\`materialityMatrix\` covers ALL assessed topics. \`findings\` only covers Material topics (exclude "Not material"). Use empty arrays \`[]\` for sub-sections with no entries — do NOT add explanatory strings inside arrays.`;
 
 let abortController = null;
 
@@ -846,13 +872,51 @@ function renderReportMarkdown(report, target, today) {
   return out.join('\n');
 }
 
-// Strip optional ```json fences and trim. The model sometimes wraps despite instructions.
-function stripJsonFence(s) {
-  let t = s.trim();
+// Pull the first balanced top-level JSON object out of an arbitrary string.
+// Handles: leading text, ```json fences, trailing commentary, unmatched stragglers.
+function extractJson(s) {
+  let t = (s || '').trim();
+  // Strip a leading ```json (or ```) fence and any matching trailing fence.
   if (t.startsWith('```')) {
-    t = t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+    t = t.replace(/^```(?:json)?\s*/i, '').replace(/```[\s\S]*$/, '').trim();
   }
-  return t.trim();
+  // Fast path: already a JSON object.
+  if (t.startsWith('{')) {
+    // Verify the braces balance; if they do, return as-is.
+    const end = findMatchingBrace(t, 0);
+    if (end === t.length - 1) return t;
+    if (end !== -1) return t.slice(0, end + 1);
+  }
+  // Slow path: find the first '{' and walk to its matching '}'.
+  const start = t.indexOf('{');
+  if (start === -1) return t;
+  const end = findMatchingBrace(t, start);
+  if (end === -1) return t.slice(start); // unbalanced; let JSON.parse throw with useful position
+  return t.slice(start, end + 1);
+}
+
+// Return the index of the '}' that closes the '{' at startIdx, or -1 if none.
+// Tracks string boundaries and escapes so braces inside strings don't confuse the count.
+function findMatchingBrace(s, startIdx) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = startIdx; i < s.length; i++) {
+    const c = s[i];
+    if (escaped) { escaped = false; continue; }
+    if (inString) {
+      if (c === '\\') escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
 }
 
 function thinkingBudgetFor(model, mode) {
@@ -939,8 +1003,9 @@ async function generate() {
     generationConfig: {
       maxOutputTokens: 32000,
       temperature: 0.2,
-      responseMimeType: 'application/json',
-      responseSchema: REPORT_SCHEMA,
+      // NOTE: responseMimeType + responseSchema cannot be combined with the
+      // google_search tool (API rejects with 400). We enforce JSON shape via
+      // the system prompt + defensive extractJson() + validateReport() instead.
       thinkingConfig: {
         thinkingBudget: thinkingBudget,
         includeThoughts: true
@@ -1046,7 +1111,7 @@ async function generate() {
     // Parse the JSON the model produced (it should conform to REPORT_SCHEMA).
     let parsedReport;
     try {
-      parsedReport = JSON.parse(stripJsonFence(reportText));
+      parsedReport = JSON.parse(extractJson(reportText));
     } catch (e) {
       throw new Error('Model returned invalid JSON. Raw output starts: ' + reportText.slice(0, 300));
     }
