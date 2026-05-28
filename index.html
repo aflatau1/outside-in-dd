@@ -1558,12 +1558,27 @@ async function buildDocxBlob(report, references, target, today) {
   }
 
   if (report.followUps && report.followUps.length) {
-    children.push(new Paragraph({ text: 'Recommended Diligence Follow-ups', heading: HeadingLevel.HEADING_1 }));
+    // Same horizontal-rule separator as between findings, plus stronger
+    // top spacing on the heading so this section reads as a deliberate
+    // transition out of the findings body into recommended actions.
+    children.push(findingSeparator());
+    children.push(new Paragraph({
+      text: 'Recommended Diligence Follow-ups',
+      heading: HeadingLevel.HEADING_1,
+      spacing: { before: 360, after: 180 }
+    }));
     for (const q of report.followUps) children.push(bulletText(q));
   }
 
   if (references && references.length) {
-    children.push(new Paragraph({ text: 'References', heading: HeadingLevel.HEADING_1 }));
+    // pageBreakBefore puts References on a fresh page — keeps the body
+    // of the report clean and gives the source list room without dragging
+    // it visually onto the same page as the conclusions.
+    children.push(new Paragraph({
+      text: 'References',
+      heading: HeadingLevel.HEADING_1,
+      pageBreakBefore: true
+    }));
     // 9pt (size is in half-points). Smaller than body so the source list
     // doesn't visually compete with the findings above it.
     for (const r of references) {
