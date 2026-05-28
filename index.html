@@ -1362,34 +1362,48 @@ async function buildDocxBlob(report, references, target, today) {
   const {
     Document, Packer, Paragraph, TextRun, HeadingLevel,
     Table, TableRow, TableCell, WidthType, TableLayoutType,
-    BorderStyle, ExternalHyperlink, PageBreak
+    BorderStyle, ExternalHyperlink, PageBreak, AlignmentType
   } = window.docx;
 
   const children = [];
 
+  // === COVER PAGE ===
+  // Title at top, centered, with breathing room above.
   children.push(new Paragraph({
     text: 'Outside-In Due Diligence Report',
-    heading: HeadingLevel.TITLE
+    heading: HeadingLevel.TITLE,
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 1440, after: 360 }
+  }));
+  // Target company as a softer subtitle directly under the title.
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 120 },
+    children: [new TextRun({ text: target.company, size: 40, color: '475569' })]
   }));
 
+  // Meta block pushed into the lower third of the page via large spacing.before
+  // on the first meta line — much more reliable than stacking empty paragraphs.
+  const coverLine = (text, opts = {}) => new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 80 },
+    children: [new TextRun({ text, ...opts })]
+  });
   children.push(new Paragraph({
-    children: [
-      new TextRun({ text: 'Target: ', bold: true }), new TextRun({ text: target.company }),
-      new TextRun({ text: '   |   Industry: ', bold: true }), new TextRun({ text: target.industry }),
-      new TextRun({ text: '   |   Revenue: ', bold: true }), new TextRun({ text: target.revenue }),
-      new TextRun({ text: '   |   Geography: ', bold: true }), new TextRun({ text: target.countries })
-    ]
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 5760, after: 80 }, // ~4 inches of vertical air
+    children: [new TextRun({ text: target.industry })]
   }));
-  children.push(new Paragraph({
-    children: [
-      new TextRun({ text: 'Research Period: ', bold: true }),
-      new TextRun({ text: `${target.periodStart} to ${target.periodEnd}` }),
-      new TextRun({ text: '   |   Report Date: ', bold: true }), new TextRun({ text: today }),
-      new TextRun({ text: '   |   Basis: ', bold: true }),
-      new TextRun({ text: 'Public information only', italics: true })
-    ]
-  }));
+  children.push(coverLine(`Revenue: ${target.revenue}`));
+  children.push(coverLine(`Geography: ${target.countries}`));
+  children.push(coverLine(`Research Period: ${target.periodStart} to ${target.periodEnd}`));
+  children.push(coverLine(`Report Date: ${today}`));
+  children.push(coverLine('Public information only', { italics: true, color: '64748B' }));
 
+  // End cover page — body starts on page 2.
+  children.push(new Paragraph({ children: [new PageBreak()] }));
+
+  // === BODY ===
   children.push(new Paragraph({ text: 'Executive Summary', heading: HeadingLevel.HEADING_1 }));
   children.push(new Paragraph({ text: report.executiveSummary || '' }));
 
