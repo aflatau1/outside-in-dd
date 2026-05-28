@@ -487,9 +487,10 @@ Run as many targeted queries as you need to develop confidence. **Absence of red
 
 # OUTPUT
 
-Return ONLY a single JSON object. No preamble. No markdown wrapper (no \`\`\`json fences). No commentary. No trailing text. Your entire response must start with \`{\` and end with \`}\` and be parseable by JSON.parse.
+Return ONLY a single JSON object. Your entire response must start with the character \`{\` and end with \`}\` and be parseable by JSON.parse — no preamble, no commentary, no trailing text, and no markdown fences around the object itself.
 
-Top-level shape (all four keys required):
+The shape below shows the keys you must emit. (The triple backticks here are for THIS prompt's readability only — do not include them in your output.)
+
 \`\`\`
 {
   "executiveSummary": "2–3 sentences on overall risk profile and top 2–3 issues for IC attention",
@@ -1101,10 +1102,13 @@ async function generate() {
     window.__outsideInLast = { reportText, finishReason, groundingMetadata: lastGroundingMetadata };
 
     if (!reportText.trim()) {
+      const hint = finishReason === 'MAX_TOKENS' ? 'Output budget exhausted — try a smaller research period or fewer topics.'
+        : finishReason === 'SAFETY' ? 'Response blocked by safety filters — try a less sensitive target or topic set.'
+        : finishReason === 'RECITATION' ? 'Response blocked as recitation — try slightly different wording.'
+        : 'The model emitted zero text. On Flash-Lite this can happen when the prompt + tool-use exceeds the model\'s capacity — try switching the Model dropdown to Flash or Pro.';
       throw new Error(
-        `Model returned no content (finishReason: ${finishReason || 'unknown'}). ` +
-        `This usually means responseSchema + Google Search grounding conflicted. ` +
-        `Check the browser console (window.__outsideInLast) for full details.`
+        `Model returned no content (finishReason: ${finishReason || 'none received'}). ${hint} ` +
+        `Inspect window.__outsideInLast in the browser console for the full response.`
       );
     }
 
@@ -1337,7 +1341,7 @@ let docxLibPromise = null;
 function loadDocxLib() {
   if (window.docx && window.docx.Document) return Promise.resolve();
   if (docxLibPromise) return docxLibPromise;
-  const url = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js';
+  const url = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js';
   docxLibPromise = new Promise((resolve, reject) => {
     const s = document.createElement('script');
     s.src = url;
