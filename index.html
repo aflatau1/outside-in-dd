@@ -1362,7 +1362,7 @@ async function buildDocxBlob(report, references, target, today) {
   const {
     Document, Packer, Paragraph, TextRun, HeadingLevel,
     Table, TableRow, TableCell, WidthType, TableLayoutType,
-    BorderStyle, ExternalHyperlink
+    BorderStyle, ExternalHyperlink, PageBreak
   } = window.docx;
 
   const children = [];
@@ -1571,24 +1571,26 @@ async function buildDocxBlob(report, references, target, today) {
   }
 
   if (references && references.length) {
-    // pageBreakBefore puts References on a fresh page — keeps the body
-    // of the report clean and gives the source list room without dragging
-    // it visually onto the same page as the conclusions.
+    // Use an explicit PageBreak paragraph rather than pageBreakBefore on
+    // the heading itself — the latter can leak into surrounding paragraphs
+    // in some Word versions; an explicit break is unambiguous.
+    children.push(new Paragraph({ children: [new PageBreak()] }));
     children.push(new Paragraph({
       text: 'References',
-      heading: HeadingLevel.HEADING_1,
-      pageBreakBefore: true
+      heading: HeadingLevel.HEADING_1
     }));
-    // 9pt (size is in half-points). Smaller than body so the source list
-    // doesn't visually compete with the findings above it.
+    // 8pt font (size is in half-points) with no extra paragraph spacing
+    // so 30–40 sources comfortably fit on one page. keepLines keeps a
+    // single long reference from splitting across pages mid-entry.
     for (const r of references) {
       children.push(new Paragraph({
-        spacing: { before: 0, after: 40 },
+        spacing: { before: 0, after: 0, line: 240 },
+        keepLines: true,
         children: [
-          new TextRun({ text: `${r.num}. `, size: 18 }),
+          new TextRun({ text: `${r.num}. `, size: 16 }),
           new ExternalHyperlink({
             link: r.uri,
-            children: [new TextRun({ text: r.title, style: 'Hyperlink', size: 18 })]
+            children: [new TextRun({ text: r.title, style: 'Hyperlink', size: 16 })]
           })
         ]
       }));
