@@ -1361,8 +1361,8 @@ function loadDocxLib() {
 async function buildDocxBlob(report, references, target, today) {
   const {
     Document, Packer, Paragraph, TextRun, HeadingLevel,
-    Table, TableRow, TableCell, WidthType,
-    ExternalHyperlink
+    Table, TableRow, TableCell, WidthType, TableLayoutType,
+    BorderStyle, ExternalHyperlink
   } = window.docx;
 
   const children = [];
@@ -1394,22 +1394,41 @@ async function buildDocxBlob(report, references, target, today) {
   children.push(new Paragraph({ text: report.executiveSummary || '' }));
 
   children.push(new Paragraph({ text: 'Materiality Matrix', heading: HeadingLevel.HEADING_1 }));
-  const headerCell = text => new TableCell({
-    children: [new Paragraph({ children: [new TextRun({ text, bold: true })] })]
+  // DXA widths sum to 9360 = letter page (12240) minus 1" left + 1" right margins (2880).
+  // Setting both per-cell widths AND a fixed table layout is required for Word to actually
+  // honor the sizes; percentage-only widths are unreliable across Word versions.
+  const matrixWidths = [2400, 1800, 5160];
+  const headerCell = (text, w) => new TableCell({
+    children: [new Paragraph({ children: [new TextRun({ text, bold: true })] })],
+    width: { size: w, type: WidthType.DXA },
+    shading: { fill: 'F1F5F9' }
   });
-  const bodyCell = text => new TableCell({ children: [new Paragraph({ text: text || '' })] });
+  const bodyCell = (text, w) => new TableCell({
+    children: [new Paragraph({ text: text || '' })],
+    width: { size: w, type: WidthType.DXA }
+  });
   const matrixRows = [
     new TableRow({
       tableHeader: true,
-      children: [headerCell('Topic'), headerCell('Materiality'), headerCell('Rationale')]
+      children: [
+        headerCell('Topic', matrixWidths[0]),
+        headerCell('Materiality', matrixWidths[1]),
+        headerCell('Rationale', matrixWidths[2])
+      ]
     }),
     ...(report.materialityMatrix || []).map(row => new TableRow({
-      children: [bodyCell(row.topic), bodyCell(row.materiality), bodyCell(row.rationale)]
+      children: [
+        bodyCell(row.topic, matrixWidths[0]),
+        bodyCell(row.materiality, matrixWidths[1]),
+        bodyCell(row.rationale, matrixWidths[2])
+      ]
     }))
   ];
   children.push(new Table({
     rows: matrixRows,
-    width: { size: 100, type: WidthType.PERCENTAGE }
+    width: { size: matrixWidths.reduce((a, b) => a + b, 0), type: WidthType.DXA },
+    columnWidths: matrixWidths,
+    layout: TableLayoutType.FIXED
   }));
 
   children.push(new Paragraph({ text: 'Findings', heading: HeadingLevel.HEADING_1 }));
@@ -1446,11 +1465,20 @@ async function buildDocxBlob(report, references, target, today) {
       if (sb) children.push(sb);
     }
   };
+  // Thin gray rule + breathing room — used between findings to make each
+  // issue area visually distinct without forcing a page break per topic.
+  const findingSeparator = () => new Paragraph({
+    spacing: { before: 360, after: 240 },
+    border: { bottom: { color: 'CBD5E1', size: 8, style: BorderStyle.SINGLE, space: 1 } }
+  });
 
-  for (const f of sortedFindings) {
+  for (let i = 0; i < sortedFindings.length; i++) {
+    if (i > 0) children.push(findingSeparator());
+    const f = sortedFindings[i];
     children.push(new Paragraph({
       text: `${f.topic} — ${f.materiality}`,
-      heading: HeadingLevel.HEADING_2
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 240, after: 120 }
     }));
 
     const ra = f.riskAssessment || {};
@@ -1536,13 +1564,16 @@ async function buildDocxBlob(report, references, target, today) {
 
   if (references && references.length) {
     children.push(new Paragraph({ text: 'References', heading: HeadingLevel.HEADING_1 }));
+    // 9pt (size is in half-points). Smaller than body so the source list
+    // doesn't visually compete with the findings above it.
     for (const r of references) {
       children.push(new Paragraph({
+        spacing: { before: 0, after: 40 },
         children: [
-          new TextRun({ text: `${r.num}. ` }),
+          new TextRun({ text: `${r.num}. `, size: 18 }),
           new ExternalHyperlink({
             link: r.uri,
-            children: [new TextRun({ text: r.title, style: 'Hyperlink' })]
+            children: [new TextRun({ text: r.title, style: 'Hyperlink', size: 18 })]
           })
         ]
       }));
